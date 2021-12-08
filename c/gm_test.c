@@ -105,6 +105,13 @@ void test_bn(const char * a, const char * b, const char * res, const char * ralg
     printf("test result: %s\n", (strcmp(res, bnr_hex) == 0 ? "ok" : "fail"));
 }
 
+/**
+ * 点单元测试
+ * @param pa 点a
+ * @param pb 点b
+ * @param res 预期结果
+ * @param alg 测试算法dbl、add、mul等
+ */
 void test_ec(const char * pa, const char * pb, const char * res, const char * alg) {
     int i, j;
     gm_point_t p1, p2, r;
@@ -138,6 +145,13 @@ void test_ec(const char * pa, const char * pb, const char * res, const char * al
     printf("test result: %s\n", (strcmp(res, e_r_hex) == 0 ? "ok" : "fail"));
 }
 
+/**
+ * 国密SM2单元测试
+ * @param key_hex 私钥十六进制
+ * @param pubKey_hex 公钥十六进制
+ * @param sig_hex 预期结果十六进制
+ * @param algType 算法，0签名及验签，1仅签名，2仅验签
+ */
 void test_gm_sv(const char * key_hex, const char * pubKey_hex, const char * sig_hex, int algType) {
     unsigned char sig_res[256] = {0};
     gm_bn_t testK;

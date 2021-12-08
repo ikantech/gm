@@ -334,6 +334,7 @@ void gm_point_set_xy(gm_point_t *r, const gm_bn_t x, const gm_bn_t y) {
     gm_bn_set_mont_one(r->Z);
 }
 
+// 停留在蒙哥马利域
 static void gm_point_get_xy_mont(const gm_point_t *p, gm_bn_t x, gm_bn_t y) {
     gm_bn_t z_inv;
     if (gm_bn_is_mont_one(p->Z)) {
@@ -344,10 +345,12 @@ static void gm_point_get_xy_mont(const gm_point_t *p, gm_bn_t x, gm_bn_t y) {
             gm_bn_copy(y, p->Y);
         }
     } else {
+        // z^{-1}
         gm_bn_inv(z_inv, p->Z, GM_BN_P);
         if (y) {
             gm_bn_mont_mul(y, p->Y, z_inv, GM_BN_P);
         }
+        // z^{-2}
         gm_bn_sqr(z_inv, z_inv, GM_BN_P);
         if(x) {
             gm_bn_mont_mul(x, p->X, z_inv, GM_BN_P);
@@ -358,6 +361,7 @@ static void gm_point_get_xy_mont(const gm_point_t *p, gm_bn_t x, gm_bn_t y) {
     }
 }
 
+// 转换为普通大数
 void gm_point_get_xy(const gm_point_t *p, gm_bn_t x, gm_bn_t y) {
     gm_point_get_xy_mont(p, x, y);
     if(x) {
@@ -610,7 +614,6 @@ retry:
                 randombytes(buf, 256);
                 gm_bn_from_bytes(k, buf);
             } while (gm_bn_cmp(k, GM_BN_N) >= 0);
-
         } while (gm_bn_is_zero(k));
     } else {
         gm_bn_copy(k, testK);
@@ -646,6 +649,10 @@ retry:
     gm_bn_inv(x, x, GM_BN_N);
     gm_bn_mont_mul(s, x, k, GM_BN_N);
 
+    if(gm_bn_is_zero(s)) {
+        goto retry;
+    }
+
     gm_bn_from_mont(s, s, GM_BN_N);
     gm_bn_to_bytes(s, sig + 32);
     return 1;
@@ -653,7 +660,7 @@ retry:
 
 int gm_do_verify(const gm_point_t *key, const gm_bn_t dgst, const unsigned char *sig) {
     gm_point_t _P, *P = &_P;
-    gm_point_t _R, *R = &_R;
+    gm_point_t _Q, *Q = &_Q;
     gm_bn_t r;
     gm_bn_t s;
     gm_bn_t e;
@@ -685,10 +692,10 @@ int gm_do_verify(const gm_point_t *key, const gm_bn_t dgst, const unsigned char 
     }
 
     // Q = s * G + t * P
-    gm_point_mul(R, s, GM_MONT_G);
+    gm_point_mul(Q, s, GM_MONT_G);
     gm_point_mul(P, t, P);
-    gm_point_add(R, R, P);
-    gm_point_get_xy(R, x, NULL);
+    gm_point_add(Q, Q, P);
+    gm_point_get_xy(Q, x, NULL);
 
     // e  = H(M)
     // r' = e + x (mod n)
