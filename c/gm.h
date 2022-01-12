@@ -22,6 +22,7 @@ typedef struct {
 
 extern const gm_bn_t GM_BN_P;
 extern const gm_bn_t GM_BN_N;
+extern const gm_point_t * GM_MONT_G;
 
 #define gm_bn_copy(r, a) memcpy((r), (a), sizeof(gm_bn_t))
 
@@ -44,6 +45,7 @@ void gm_bn_sqr(gm_bn_t r, const gm_bn_t a, const gm_bn_t m);
 void gm_bn_exp(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m);
 void gm_bn_inv(gm_bn_t r, const gm_bn_t a, const gm_bn_t m);
 
+void gm_bn_set_zero(gm_bn_t r);
 void gm_bn_set_mont_one(gm_bn_t r);
 int gm_bn_is_mont_one(const gm_bn_t r);
 int gm_bn_is_zero(const gm_bn_t r);

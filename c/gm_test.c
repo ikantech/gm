@@ -1,4 +1,6 @@
 #include "gm.h"
+#include "sm3.h"
+#include "sm2.h"
 #include <stdio.h>
 
 #define TEST_BN_ALG(alg_name, a, b, r) \
@@ -150,9 +152,12 @@ void test_ec(const char * pa, const char * pb, const char * res, const char * al
  * @param key_hex 私钥十六进制
  * @param pubKey_hex 公钥十六进制
  * @param sig_hex 预期结果十六进制
+ * @param dgst_bytes 消息摘要二进制
  * @param algType 算法，0签名及验签，1仅签名，2仅验签
  */
-void test_gm_sv(const char * key_hex, const char * pubKey_hex, const char * sig_hex, int algType) {
+void test_gm_sv(const char * key_hex, const char * pubKey_hex, const char * sig_hex,
+        const unsigned char * dgst_bytes,
+        int algType) {
     unsigned char sig_res[256] = {0};
     gm_bn_t testK;
     gm_bn_t key;
@@ -161,7 +166,11 @@ void test_gm_sv(const char * key_hex, const char * pubKey_hex, const char * sig_
     int i, j;
 
     gm_bn_from_hex(testK, key_hex);
-    gm_bn_from_hex(dgst, key_hex);
+    if(dgst_bytes == NULL) {
+        gm_bn_from_hex(dgst, key_hex);
+    }else {
+        gm_bn_from_bytes(dgst, dgst_bytes);
+    }
     gm_bn_from_hex(key, key_hex);
     gm_point_from_hex(P, pubKey_hex);
 
@@ -212,10 +221,49 @@ void test_gm_sv(const char * key_hex, const char * pubKey_hex, const char * sig_
     printf("test result: %s\n", (strcmp(sig_hex, sig_res) == 0 ? "ok" : "fail"));
 }
 
-int main(int argc, char ** argv) {
-    size_t cmdLen = strlen(argv[1]);
-    if (cmdLen < 2) return -1;
+void test_sm2_sv(const char * key_hex, const char * pubKey_hex, const char * sig_hex,
+                 const char * input, unsigned int iLen,
+                 int algType) {
+    unsigned char buf[32] = {0};
+    gm_bn_t key;
+    gm_point_t _P, *P = &_P;
 
+    gm_bn_from_hex(key, key_hex);
+    // 从私钥中计算公钥
+    gm_point_mul(P, key, GM_MONT_G);
+
+    gm_sm2_compute_msg_hash(input, iLen, "1234567812345678", 16, P, buf);
+
+    test_gm_sv(key_hex, pubKey_hex, sig_hex, buf, algType);
+}
+
+void test_gm_sm3(const unsigned char * input, unsigned int iLen, const unsigned char * output_hex) {
+    gm_sm3_context ctx;
+    int i = 0;
+    unsigned char buf[32] = {0};
+    char res[65] = {0};
+
+    gm_sm3(input, iLen, buf);
+
+    gm_sm3_init(&ctx);
+    gm_sm3_update(&ctx, input, iLen);
+
+    for(i = 0; i < 100000; i++) { // 10万次
+        gm_sm3(buf, 31, buf);
+        gm_sm3_update(&ctx, buf, i % 32);
+    }
+
+    gm_sm3_done(&ctx, buf);
+
+    for (i = 0; i < 32; i++) {
+        sprintf(res + i * 2, "%02X", (buf[i] & 0x0FF));
+    }
+
+    printf("r = %s\n", res);
+    printf("test result: %s\n", (strcmp(output_hex, res) == 0 ? "ok" : "fail"));
+}
+
+void test(const char ** argv) {
     /** base ops **/
     TEST_BN_ALG("gmp_to_mont",
                 "32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7",
@@ -328,15 +376,17 @@ int main(int argc, char ** argv) {
 
     if(strcmp(argv[1], "gm_sv") == 0) {
         test_gm_sv("6B8B4567327B23C6643C98696633487374B0DC5119495CFF2AE8944A625558EC",
-                       "0148E6AF89A0E132E4E7CDA26DF2C2AEB53B741FD00AE85C78CF6EBA13E939B12F58B1E8A661EBF3395459F28945D381259BEEDA76B4886FABF5EE0A55ADEEB2",
-                       "D6125763F2825F35494E930245D064E408553678A200D018E6217975E19EEFE68E48E00F0BF9632826F64F84122627A36F0F998CDB120327F4BC7ABF84E86FE4",
-                       0);
+                   "0148E6AF89A0E132E4E7CDA26DF2C2AEB53B741FD00AE85C78CF6EBA13E939B12F58B1E8A661EBF3395459F28945D381259BEEDA76B4886FABF5EE0A55ADEEB2",
+                   "D6125763F2825F35494E930245D064E408553678A200D018E6217975E19EEFE68E48E00F0BF9632826F64F84122627A36F0F998CDB120327F4BC7ABF84E86FE4",
+                   NULL,
+                   0);
     }
 
     if(strcmp(argv[1], "gm_sign") == 0) {
         test_gm_sv("6B8B4567327B23C6643C98696633487374B0DC5119495CFF2AE8944A625558EC",
                    "0148E6AF89A0E132E4E7CDA26DF2C2AEB53B741FD00AE85C78CF6EBA13E939B12F58B1E8A661EBF3395459F28945D381259BEEDA76B4886FABF5EE0A55ADEEB2",
                    "D6125763F2825F35494E930245D064E408553678A200D018E6217975E19EEFE68E48E00F0BF9632826F64F84122627A36F0F998CDB120327F4BC7ABF84E86FE4",
+                   NULL,
                    1);
     }
 
@@ -344,7 +394,82 @@ int main(int argc, char ** argv) {
         test_gm_sv("6B8B4567327B23C6643C98696633487374B0DC5119495CFF2AE8944A625558EC",
                    "0148E6AF89A0E132E4E7CDA26DF2C2AEB53B741FD00AE85C78CF6EBA13E939B12F58B1E8A661EBF3395459F28945D381259BEEDA76B4886FABF5EE0A55ADEEB2",
                    "6CD42C16BC1C04F94924660BD4260B2229EC5070E954455BA3B80304763E929DB86361E8EAF0497DA53DD2DDE83F6CEA3C2C4838E9D3E29BDB269D9C5BF52976",
+                   NULL,
                    2);
+    }
+
+    if(strcmp(argv[1], "gm_sm3") == 0) {
+        test_gm_sm3("abc", 3, "DC7E07FF06247D00B4A8D1837C8F8B2A26C3C67C2EEE81B1E7CF9400B51891CB");
+    }
+
+    if(strcmp(argv[1], "sm2_sv") == 0) {
+        test_sm2_sv("6B8B4567327B23C6643C98696633487374B0DC5119495CFF2AE8944A625558EC",
+                   "0148E6AF89A0E132E4E7CDA26DF2C2AEB53B741FD00AE85C78CF6EBA13E939B12F58B1E8A661EBF3395459F28945D381259BEEDA76B4886FABF5EE0A55ADEEB2",
+                   "E85863FA584DEBE05D573D655DF82B889284189B15D1559E577B0E67500BDF14885066A6176A5D12B5DADC52CB11C84F72AEA157F9E7D0878E988A39BCCBB3B7",
+                   "abc", 3,
+                   0);
+    }
+
+    if(strcmp(argv[1], "sm2_sign") == 0) {
+        test_sm2_sv("6B8B4567327B23C6643C98696633487374B0DC5119495CFF2AE8944A625558EC",
+                   "0148E6AF89A0E132E4E7CDA26DF2C2AEB53B741FD00AE85C78CF6EBA13E939B12F58B1E8A661EBF3395459F28945D381259BEEDA76B4886FABF5EE0A55ADEEB2",
+                   "E85863FA584DEBE05D573D655DF82B889284189B15D1559E577B0E67500BDF14885066A6176A5D12B5DADC52CB11C84F72AEA157F9E7D0878E988A39BCCBB3B7",
+                    "abc", 3,
+                   1);
+    }
+
+    if(strcmp(argv[1], "sm2_verify") == 0) {
+        test_sm2_sv("6B8B4567327B23C6643C98696633487374B0DC5119495CFF2AE8944A625558EC",
+                   "0148E6AF89A0E132E4E7CDA26DF2C2AEB53B741FD00AE85C78CF6EBA13E939B12F58B1E8A661EBF3395459F28945D381259BEEDA76B4886FABF5EE0A55ADEEB2",
+                   "0EB2C35EB35943C3964116BD3AB589E3AC7EAA526422A3B4F6488B16BF5B2B5F1B803696DB30BBABAEFDEAD134B18AF9F5A14062929412BAE95BE1D90C9A2DA0",
+                    "abc", 3,
+                   2);
+    }
+}
+
+int main(int argc, char ** argv) {
+    size_t cmdLen = strlen(argv[1]);
+    if (cmdLen < 2) return -1;
+
+    if(strcmp(argv[1], "test_all") == 0) {
+        int i;
+        char * algs[24] = {
+                "gmp_to_mont",
+                "gmn_to_mont",
+                "gmp_from_mont",
+                "gmn_from_mont",
+                "gmp_mod_t",
+                "gmn_mod_t",
+                "gmp_add",
+                "gmn_add",
+                "gmp_sub",
+                "gmn_sub",
+                "gmp_mul",
+                "gmn_mul",
+                "gmp_sqr",
+                "gmn_sqr",
+                "gmp_exp",
+                "gmn_exp",
+                "gmp_inv",
+                "gmn_inv",
+                "point_dbl",
+                "point_add",
+                "point_mul",
+                "gm_sv",
+                "gm_sign",
+                "gm_verify",
+                "gm_sm3",
+                "sm2_sv",
+                "sm2_sign",
+                "sm2_verify"
+        };
+        for(i = 0; i < 24; i++) {
+            argv[1] = algs[i];
+            printf("\n%s:\n", argv[1]);
+            test(argv);
+        }
+    }else {
+        test(argv);
     }
 
     return 0;

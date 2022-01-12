@@ -3,6 +3,10 @@
 #include <assert.h>
 #include <stdio.h>
 
+#ifdef GM_RAND_SM3
+#include "sm3.h"
+#endif
+
 #define GM_GETU32(p) \
     ((uint32_t)(p)[0] << 24 | \
 	 (uint32_t)(p)[1] << 16 | \
@@ -73,6 +77,11 @@ static const gm_point_t _GM_MONT_G = {
 };
 const gm_point_t * GM_MONT_G = &_GM_MONT_G;
 
+#ifdef GM_ASM
+void gm_i_bn_add_x(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, int count);
+void gm_i_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b);
+void gm_i_bn_mul(uint64_t * r, const uint64_t * k, const gm_bn_t b);
+#else
 static void gm_i_bn_add_x(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, int count) {
     int i;
     r[0] = a[0] + b[0];
@@ -80,10 +89,6 @@ static void gm_i_bn_add_x(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, int count
         r[i] = a[i] + b[i] + (r[i - 1] >> 32);
         r[i - 1] &= 0x0FFFFFFFFULL;
     }
-}
-
-static void gm_i_bn_add(gm_bn_t r, const gm_bn_t a, const gm_bn_t b) {
-    gm_i_bn_add_x(r, a, b, 8);
 }
 
 static void gm_i_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b) {
@@ -119,6 +124,11 @@ static void gm_i_bn_mul(uint64_t * r, const uint64_t * k, const gm_bn_t b) {
         }
         r[i + 8] = t;
     }
+}
+#endif
+
+static void gm_i_bn_add(gm_bn_t r, const gm_bn_t a, const gm_bn_t b) {
+    gm_i_bn_add_x(r, a, b, 8);
 }
 
 static int gm_hex2int(char c) {
@@ -312,6 +322,10 @@ void gm_bn_inv(gm_bn_t r, const gm_bn_t a, const gm_bn_t m) {
 
 void gm_bn_set_mont_one(gm_bn_t r) {
     gm_bn_copy(r, GM_BN_MONT_PONE);
+}
+
+void gm_bn_set_zero(gm_bn_t r) {
+    gm_bn_copy(r, GM_BN_ZERO);
 }
 
 int gm_bn_is_mont_one(const gm_bn_t r){
@@ -612,6 +626,9 @@ retry:
         do {
             do {
                 randombytes(buf, 256);
+#ifdef GM_RAND_SM3
+                gm_sm3(buf, 256, buf);
+#endif
                 gm_bn_from_bytes(k, buf);
             } while (gm_bn_cmp(k, GM_BN_N) >= 0);
         } while (gm_bn_is_zero(k));
