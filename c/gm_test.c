@@ -1,6 +1,7 @@
 #include "gm.h"
 #include "sm3.h"
 #include "sm2.h"
+#include "sm4.h"
 #include <stdio.h>
 
 #define TEST_BN_ALG(alg_name, a, b, r) \
@@ -263,6 +264,28 @@ void test_gm_sm3(const unsigned char * input, unsigned int iLen, const unsigned 
     printf("test result: %s\n", (strcmp(output_hex, res) == 0 ? "ok" : "fail"));
 }
 
+void test_gm_sm4(const unsigned char * key, int mode, 
+    const unsigned char * input, 
+    const unsigned char * output_hex) {
+
+    int i = 0;
+    unsigned char buf[16] = {0};
+    char res[33] = {0};
+
+    memcpy(buf, input, 16);
+
+    for(i = 0; i < 100000; i++) {
+        gm_sm4_crypt(key, mode, buf, buf);
+    }
+
+    for (i = 0; i < 16; i++) {
+        sprintf(res + i * 2, "%02X", (buf[i] & 0x0FF));
+    }
+
+    printf("r = %s\n", res);
+    printf("test result: %s\n", (strcmp(output_hex, res) == 0 ? "ok" : "fail"));
+}
+
 void test(const char ** argv) {
     /** base ops **/
     TEST_BN_ALG("gmp_to_mont",
@@ -425,6 +448,32 @@ void test(const char ** argv) {
                     "abc", 3,
                    2);
     }
+
+    if(strcmp(argv[1], "gm_sm4_encrypt") == 0) {
+        unsigned char key[16] = {
+            0x6B, 0x8B, 0x45, 0x67, 0x32, 0x7B, 0x23, 0xC6, 
+            0x64, 0x3C, 0x98, 0x69, 0x66, 0x33, 0x48, 0x73
+        };
+        unsigned char input[16] = {
+            0x74, 0xB0, 0xDC, 0x51, 0x19, 0x49, 0x5C, 0xFF, 
+            0x2A, 0xE8, 0x94, 0x4A, 0x62, 0x55, 0x58, 0xEC
+        };
+        test_gm_sm4(key, 0, input,
+                    "C941785C2A15751A774DEFCAE01011D4");
+    }
+
+    if(strcmp(argv[1], "gm_sm4_decrypt") == 0) {
+        unsigned char key[16] = {
+            0x6B, 0x8B, 0x45, 0x67, 0x32, 0x7B, 0x23, 0xC6, 
+            0x64, 0x3C, 0x98, 0x69, 0x66, 0x33, 0x48, 0x73
+        };
+        unsigned char input[16] = {
+            0xC9, 0x41, 0x78, 0x5C, 0x2A, 0x15, 0x75, 0x1A, 
+            0x77, 0x4D, 0xEF, 0xCA, 0xE0, 0x10, 0x11, 0xD4
+        };
+        test_gm_sm4(key, 1, input,
+                    "74B0DC5119495CFF2AE8944A625558EC");
+    }
 }
 
 int main(int argc, char ** argv) {
@@ -433,7 +482,7 @@ int main(int argc, char ** argv) {
 
     if(strcmp(argv[1], "test_all") == 0) {
         int i;
-        char * algs[24] = {
+        char * algs[30] = {
                 "gmp_to_mont",
                 "gmn_to_mont",
                 "gmp_from_mont",
@@ -461,9 +510,11 @@ int main(int argc, char ** argv) {
                 "gm_sm3",
                 "sm2_sv",
                 "sm2_sign",
-                "sm2_verify"
+                "sm2_verify",
+                "gm_sm4_encrypt",
+                "gm_sm4_decrypt"
         };
-        for(i = 0; i < 24; i++) {
+        for(i = 0; i < 30; i++) {
             argv[1] = algs[i];
             printf("\n%s:\n", argv[1]);
             test(argv);
