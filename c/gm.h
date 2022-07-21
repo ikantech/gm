@@ -26,6 +26,8 @@ extern const gm_point_t * GM_MONT_G;
 
 #define gm_bn_copy(r, a) memcpy((r), (a), sizeof(gm_bn_t))
 
+int gm_hex2bin(const char * in, int in_len, uint8_t * out);
+
 void gm_bn_to_bytes(const gm_bn_t a, uint8_t out[32]);
 void gm_bn_from_bytes(gm_bn_t r, const uint8_t in[32]);
 void gm_bn_to_hex(const gm_bn_t a, char hex[64]);
@@ -61,6 +63,9 @@ void gm_point_from_hex(gm_point_t *p, const char hex[128]);
 void gm_point_to_hex(gm_point_t *r, char hex[128]);
 void gm_point_from_bytes(gm_point_t *r, const uint8_t in[64]);
 void gm_point_to_bytes(const gm_point_t *p, uint8_t out[64]);
+
+void gm_point_encode(const gm_point_t *p, uint8_t * out, int compressed);
+void gm_point_decode(gm_point_t *p, const uint8_t * in);
 
 void gm_point_double(gm_point_t * r, const gm_point_t * p);
 void gm_point_add(gm_point_t * r, const gm_point_t * a, const gm_point_t * b);

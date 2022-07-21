@@ -77,6 +77,16 @@ static const gm_point_t _GM_MONT_G = {
 };
 const gm_point_t * GM_MONT_G = &_GM_MONT_G;
 
+static const gm_bn_t GM_BN_MOUNT_A = {
+    0xFFFFFFFC, 0xFFFFFFFF, 0x00000003, 0xFFFFFFFC,
+    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFB
+};
+
+static const gm_bn_t GM_BN_MOUNT_B = {
+    0x2BC0DD42, 0x90D23063, 0xE9B537AB, 0x71CF379A, 
+    0x5EA51C3C, 0x52798150, 0xBA20E2C8, 0x240FE188
+};
+
 #ifdef GM_ASM
 void gm_i_bn_add_x(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, int count);
 void gm_i_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b);
@@ -142,7 +152,7 @@ static int gm_hex2int(char c) {
     return -1;
 }
 
-static int gm_hex2bin(const char * in, int in_len, uint8_t * out) {
+int gm_hex2bin(const char * in, int in_len, uint8_t * out) {
     int c = 0;
     if((in_len % 2) != 0) {
         return -1;
@@ -595,6 +605,63 @@ void gm_point_mul(gm_point_t * r, const gm_bn_t k, const gm_point_t * p) {
         }
     }
     gm_point_copy(r, q);
+}
+
+void gm_point_encode(const gm_point_t *p, uint8_t * out, int compressed) {
+    if(compressed) {
+        gm_bn_t x, y;
+        gm_point_get_xy(p, x, y);
+
+        out[0] = 0x02 + (y[0] & 0x01);
+        gm_bn_to_bytes(x, out + 1);
+    } else {
+        out[0] = 0x04;
+        gm_point_to_bytes(p, out + 1);
+    }
+}
+
+void gm_point_decode(gm_point_t *p, const uint8_t * in) {
+    if(in[0] == 0x04) {
+        // 未压缩点，直接转化
+        gm_point_from_bytes(p, in + 1);
+    }else if(in[0] == 0x02 || in[1] == 0x03) {
+        int yTile = in[0] - 0x02;
+        gm_bn_t x, r;
+
+        // 预计算的 (P + 1) / 4
+        gm_bn_t padd1shit2 = {
+            0x00000000, 0x40000000, 0xC0000000, 0xFFFFFFFF,
+            0xFFFFFFFF, 0xFFFFFFFF, 0xBFFFFFFF, 0x3FFFFFFF
+        };
+
+        gm_bn_from_bytes(x, in + 1);
+        gm_bn_to_mont(x, x, GM_BN_P);
+
+        // r = x ^ 2
+        gm_bn_sqr(r, x, GM_BN_P);
+
+        // r = x^2 + a
+        gm_bn_add(r, r, GM_BN_MOUNT_A, GM_BN_P);
+
+        // r = x^3 + ax
+        gm_bn_mont_mul(r, r, x, GM_BN_P);
+
+        // r = x^3 + ax + b
+        gm_bn_add(r, r, GM_BN_MOUNT_B, GM_BN_P);
+
+        // r = sqrt(x^3 + ax + b) = (x^3 + ax + b) ^ ((P + 1) / 4) (mod P)
+        gm_bn_exp(r, r, padd1shit2, GM_BN_P);
+
+        gm_bn_from_mont(padd1shit2, r, GM_BN_P);
+        if((padd1shit2[0] & 0x01) != yTile) {
+            gm_bn_sub(r, GM_BN_P, padd1shit2, GM_BN_P);
+            gm_bn_to_mont(r, r, GM_BN_P);
+        }
+
+        gm_bn_copy(p->X, x);
+        gm_bn_copy(p->Y, r);
+        gm_bn_set_mont_one(p->Z);
+    }
 }
 
 int gm_do_sign(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig) {
