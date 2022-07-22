@@ -264,7 +264,7 @@ void test_gm_sm3(const unsigned char * input, unsigned int iLen, const unsigned 
     printf("test result: %s\n", (strcmp(output_hex, res) == 0 ? "ok" : "fail"));
 }
 
-void test_gm_sm4(const unsigned char * key, int mode, 
+void test_gm_sm4(const unsigned char * key, int forEncryption, 
     const unsigned char * input, 
     const unsigned char * output_hex) {
 
@@ -275,7 +275,7 @@ void test_gm_sm4(const unsigned char * key, int mode,
     memcpy(buf, input, 16);
 
     for(i = 0; i < 100000; i++) {
-        gm_sm4_crypt(key, mode, buf, buf);
+        gm_sm4_crypt(key, forEncryption, buf, buf);
     }
 
     for (i = 0; i < 16; i++) {
@@ -541,7 +541,7 @@ void test(const char ** argv) {
             0x74, 0xB0, 0xDC, 0x51, 0x19, 0x49, 0x5C, 0xFF, 
             0x2A, 0xE8, 0x94, 0x4A, 0x62, 0x55, 0x58, 0xEC
         };
-        test_gm_sm4(key, 0, input,
+        test_gm_sm4(key, 1, input,
                     "C941785C2A15751A774DEFCAE01011D4");
     }
 
@@ -554,7 +554,7 @@ void test(const char ** argv) {
             0xC9, 0x41, 0x78, 0x5C, 0x2A, 0x15, 0x75, 0x1A, 
             0x77, 0x4D, 0xEF, 0xCA, 0xE0, 0x10, 0x11, 0xD4
         };
-        test_gm_sm4(key, 1, input,
+        test_gm_sm4(key, 0, input,
                     "74B0DC5119495CFF2AE8944A625558EC");
     }
 

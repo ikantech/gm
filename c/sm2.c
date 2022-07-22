@@ -4,6 +4,7 @@
 
 #include "sm2.h"
 
+// SM2 a
 static const unsigned char GM_ECC_A[] = {
         0xFF, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF,
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -11,6 +12,7 @@ static const unsigned char GM_ECC_A[] = {
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC
 };
 
+// SM2 b
 static const unsigned char GM_ECC_B[] = {
         0x28, 0xE9, 0xFA, 0x9E, 0x9D, 0x9F, 0x5E, 0x34,
         0x4D, 0x5A, 0x9E, 0x4B, 0xCF, 0x65, 0x09, 0xA7,
@@ -18,6 +20,7 @@ static const unsigned char GM_ECC_B[] = {
         0xDD, 0xBC, 0xBD, 0x41, 0x4D, 0x94, 0x0E, 0x93
 };
 
+// SM2 Gx
 static const unsigned char GM_ECC_G_X[] = {
         0x32, 0xC4, 0xAE, 0x2C, 0x1F, 0x19, 0x81, 0x19,
         0x5F, 0x99, 0x04, 0x46, 0x6A, 0x39, 0xC9, 0x94,
@@ -25,6 +28,7 @@ static const unsigned char GM_ECC_G_X[] = {
         0x71, 0x5A, 0x45, 0x89, 0x33, 0x4C, 0x74, 0xC7
 };
 
+// SM2 Gy
 static const unsigned char GM_ECC_G_Y[] = {
         0xBC, 0x37, 0x36, 0xA2, 0xF4, 0xF6, 0x77, 0x9C,
         0x59, 0xBD, 0xCE, 0xE3, 0x6B, 0x69, 0x21, 0x53,
@@ -37,6 +41,13 @@ static const unsigned char GM_ECC_G_Y[] = {
 //    gm_point_init(&ctx->public_key)
 //}
 
+/**
+ * ZA计算，具体参照规范文档
+ * @param id_bytes userid二进制串
+ * @param idLen userid长度
+ * @param pub_key 公钥
+ * @param output 输出缓冲区
+ */
 void gm_sm2_compute_z_digest(const unsigned char * id_bytes, unsigned int idLen, const gm_point_t * pub_key,
         unsigned char * output) {
     gm_sm3_context _ctx;
@@ -78,6 +89,15 @@ void gm_sm2_compute_z_digest(const unsigned char * id_bytes, unsigned int idLen,
     gm_sm3_done(ctx, output);
 }
 
+/**
+ * 用于SM2签名验签时消息摘要的计算，output  = SM3(ZA||M)
+ * @param input 待计算消息
+ * @param iLen 消息长度
+ * @param id_bytes userid二进制串
+ * @param idLen userid长度
+ * @param pub_key 公钥
+ * @param output 输出缓冲区
+ */
 void gm_sm2_compute_msg_hash(const unsigned char * input, unsigned iLen,
         const unsigned char * id_bytes, unsigned int idLen,
         const gm_point_t * pub_key, unsigned char * output) {

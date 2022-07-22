@@ -7,63 +7,75 @@
 #include "sm3.h"
 #endif
 
+// 字节转化为字
 #define GM_GETU32(p) \
     ((uint32_t)(p)[0] << 24 | \
 	 (uint32_t)(p)[1] << 16 | \
 	 (uint32_t)(p)[2] <<  8 | \
 	 (uint32_t)(p)[3])
 
+// 字转化为字节
 #define GM_PUTU32(p,V) \
 	((p)[0] = (uint8_t)((V) >> 24), \
 	 (p)[1] = (uint8_t)((V) >> 16), \
 	 (p)[2] = (uint8_t)((V) >>  8), \
 	 (p)[3] = (uint8_t)(V))
 
+// SM2 P
 const gm_bn_t GM_BN_P = {
         0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0xFFFFFFFF,
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE
 };
 
+// SM2 N
 const gm_bn_t GM_BN_N = {
         0x39D54123, 0x53BBF409, 0x21C6052B, 0x7203DF6B,
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE
 };
 
+// 蒙哥马利域转化用参数，(r ^ 2)(mod p)
 static const gm_bn_t GM_BN_MONT_PRR = {
         0x00000003, 0x00000002, 0xFFFFFFFF, 0x00000002,
         0x00000001, 0x00000001, 0x00000002, 0x00000004
 };
 
+// 蒙哥马利域转化用参数，(r ^ 2)(mod n)
 static const gm_bn_t GM_BN_MONT_NRR = {
         0x7C114F20, 0x901192AF, 0xDE6FA2FA, 0x3464504A,
         0x3AFFE0D4, 0x620FC84C, 0xA22B3D3B, 0x1EB5E412
 };
 
+// 大数0
 static const gm_bn_t GM_BN_ZERO = {
         0x0, 0x0, 0x0, 0x0,
         0x0, 0x0, 0x0, 0x0
 };
 
+// 大数1
 static const gm_bn_t GM_BN_ONE = {
         0x1, 0x0, 0x0, 0x0,
         0x0, 0x0, 0x0, 0x0
 };
 
+// 大数2
 static const gm_bn_t GM_BN_TWO = {
         0x2, 0x0, 0x0, 0x0,
         0x0, 0x0, 0x0, 0x0
 };
 
+// 蒙哥马利域 1 (mod p)
 static const gm_bn_t GM_BN_MONT_PONE = {
         0x00000001, 0x00000000, 0xFFFFFFFF, 0x00000000,
         0x00000000, 0x00000000, 0x00000000, 0x00000001
 };
 
+// 蒙哥马利域 1 (mod n)
 static const gm_bn_t GM_BN_MONT_NONE = {
         0xC62ABEDD, 0xAC440BF6, 0xDE39FAD4, 0x8DFC2094,
         0x00000000, 0x00000000, 0x00000000, 0x00000001
 };
 
+// 蒙哥马利域, SM2 G
 static const gm_point_t _GM_MONT_G = {
         {
                 0xF418029E, 0x61328990, 0xDCA6C050, 0x3E7981ED, 0xAC24C3C3, 0xD6A1ED99, 0xE1C13B05, 0x91167A5E
@@ -77,21 +89,33 @@ static const gm_point_t _GM_MONT_G = {
 };
 const gm_point_t * GM_MONT_G = &_GM_MONT_G;
 
-static const gm_bn_t GM_BN_MOUNT_A = {
+// 蒙哥马利域, SM2 A
+static const gm_bn_t GM_BN_MONT_A = {
     0xFFFFFFFC, 0xFFFFFFFF, 0x00000003, 0xFFFFFFFC,
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFB
 };
 
-static const gm_bn_t GM_BN_MOUNT_B = {
+// 蒙哥马利域, SM2 B
+static const gm_bn_t GM_BN_MONT_B = {
     0x2BC0DD42, 0x90D23063, 0xE9B537AB, 0x71CF379A, 
     0x5EA51C3C, 0x52798150, 0xBA20E2C8, 0x240FE188
 };
 
 #ifdef GM_ASM
+
 void gm_i_bn_add_x(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, int count);
 void gm_i_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b);
 void gm_i_bn_mul(uint64_t * r, const uint64_t * k, const gm_bn_t b);
+
 #else
+
+/**
+ * 大数加法，r = (a + b)
+ * @param r 存储结果
+ * @param a 大数a
+ * @param b 大数b
+ * @param count 大数的长度
+ */
 static void gm_i_bn_add_x(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, int count) {
     int i;
     r[0] = a[0] + b[0];
@@ -101,6 +125,12 @@ static void gm_i_bn_add_x(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, int count
     }
 }
 
+/**
+ * 大数减法，r = (a - b)
+ * @param r 存储结果
+ * @param a 大数a
+ * @param b 大数b
+ */
 static void gm_i_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b) {
     int i;
     r[0] = 0x100000000ULL + a[0] - b[0];
@@ -112,18 +142,16 @@ static void gm_i_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b) {
     r[i - 1] &= 0x0FFFFFFFFULL;
 }
 
+/**
+ * 大数乘法, r = k[b]
+ * @param r 存储结果
+ * @param k 8字节数
+ * @param b 大数
+ */
 static void gm_i_bn_mul(uint64_t * r, const uint64_t * k, const gm_bn_t b) {
     int i, j;
     // k0b0, k0b1+k1b0, .. ,k0b7+k1b6, k1b7
     uint64_t t;
-
-//    t = 0;
-//    for(j = 0; j < 8; j++) {
-//        t = k[0] * b[i] + t;
-//        r[j] = t & 0x0FFFFFFFFULL;
-//        t >>= 32;
-//    }
-//    r[8] = t;
 
     for(i = 0; i < 2; i++) {
         t = 0;
@@ -135,12 +163,20 @@ static void gm_i_bn_mul(uint64_t * r, const uint64_t * k, const gm_bn_t b) {
         r[i + 8] = t;
     }
 }
+
 #endif
 
+/**
+ * 大数加法，r = (a + b)
+ * @param r 存储结果
+ * @param a 大数a
+ * @param b 大数b
+ */
 static void gm_i_bn_add(gm_bn_t r, const gm_bn_t a, const gm_bn_t b) {
     gm_i_bn_add_x(r, a, b, 8);
 }
 
+// 十六进制转化为int
 static int gm_hex2int(char c) {
     if(c >= '0' && c <= '9') {
         return c - '0';
@@ -152,6 +188,12 @@ static int gm_hex2int(char c) {
     return -1;
 }
 
+/**
+ * 十六进制转化为二进制
+ * @param in 十六进制串
+ * @param in_len 十六进制串长度，必须为偶数
+ * @param out 二进制缓冲区
+ */
 int gm_hex2bin(const char * in, int in_len, uint8_t * out) {
     int c = 0;
     if((in_len % 2) != 0) {
@@ -175,6 +217,11 @@ int gm_hex2bin(const char * in, int in_len, uint8_t * out) {
     return 1;
 }
 
+/**
+ * 将大数转化为二进制串
+ * @param a 待转化大数
+ * @param out 输出缓冲区
+ */
 void gm_bn_to_bytes(const gm_bn_t a, uint8_t out[32])
 {
     int i;
@@ -184,6 +231,11 @@ void gm_bn_to_bytes(const gm_bn_t a, uint8_t out[32])
     }
 }
 
+/**
+ * 将二进制串转化为大数
+ * @param r 用于存储转化后的大数
+ * @param in 待转化的二进制串
+ */
 void gm_bn_from_bytes(gm_bn_t r, const uint8_t in[32])
 {
     int i;
@@ -193,6 +245,11 @@ void gm_bn_from_bytes(gm_bn_t r, const uint8_t in[32])
     }
 }
 
+/**
+ * 将大数转化为十六进制串
+ * @param a 待转化大数
+ * @param hex 输出缓冲区
+ */
 void gm_bn_to_hex(const gm_bn_t a, char hex[64])
 {
     int i;
@@ -204,6 +261,11 @@ void gm_bn_to_hex(const gm_bn_t a, char hex[64])
     }
 }
 
+/**
+ * 将十六进制串转化为大数
+ * @param r 用于存储转化后的大数
+ * @param hex 待转化十六进制串
+ */
 int gm_bn_from_hex(gm_bn_t r, const char hex[64])
 {
     uint8_t buf[32];
@@ -213,6 +275,11 @@ int gm_bn_from_hex(gm_bn_t r, const char hex[64])
     return 1;
 }
 
+/**
+ * 将大数转化为比特串
+ * @param a 待转化大数
+ * @param bits 比特串缓冲区
+ */
 void gm_bn_to_bits(const gm_bn_t a, char bits[256])
 {
     int i, j;
@@ -225,6 +292,12 @@ void gm_bn_to_bits(const gm_bn_t a, char bits[256])
     }
 }
 
+/**
+ * 大数比较
+ * @param a 大数a
+ * @param b 大数b
+ * @return 0 当a等于b，1当a大于b，-1当a小于b
+ */
 int gm_bn_cmp(const gm_bn_t a, const gm_bn_t b) {
     int i;
     for (i = 7; i >= 0; i--) {
@@ -236,6 +309,13 @@ int gm_bn_cmp(const gm_bn_t a, const gm_bn_t b) {
     return 0;
 }
 
+/**
+ * 大数模加，(a + b)(mod m)
+ * @param r 计算结果
+ * @param a 大数a
+ * @param b 大数b
+ * @param m 模m
+ */
 void gm_bn_add(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m) {
     gm_i_bn_add(r, a, b);
     if(gm_bn_cmp(r, m) >= 0) {
@@ -243,6 +323,13 @@ void gm_bn_add(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m) {
     }
 }
 
+/**
+ * 大数模减，(a - b)(mod m)
+ * @param r 计算结果
+ * @param a 大数a
+ * @param b 大数b
+ * @param m 模m
+ */
 void gm_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m) {
     if (gm_bn_cmp(a, b) >= 0) {
         gm_i_bn_sub(r, a, b);
@@ -253,6 +340,13 @@ void gm_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m) {
     }
 }
 
+/**
+ * 蒙哥马利域模乘，(a * b)(mod m)
+ * @param r 计算结果
+ * @param a 大数a
+ * @param b 大数b
+ * @param m 模m
+ */
 void gm_bn_mont_mul(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m) {
     uint64_t temp_r[11] = {0};
     uint64_t temp_mul[11] = {0};
@@ -290,18 +384,43 @@ void gm_bn_mont_mul(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m
     gm_bn_copy(r, temp_r);
 }
 
+/**
+ * 将大数转化为蒙哥马利域
+ * @param r 计算结果
+ * @param a 大数a
+ * @param m 模m
+ */
 void gm_bn_to_mont(gm_bn_t r, const gm_bn_t a, const gm_bn_t m) {
     gm_bn_mont_mul(r, a, (m[0] == GM_BN_N[0] ? GM_BN_MONT_NRR : GM_BN_MONT_PRR), m);
 }
 
+/**
+ * 将蒙哥马利域转化为普通大数
+ * @param r 计算结果
+ * @param a 大数a
+ * @param m 模m
+ */
 void gm_bn_from_mont(gm_bn_t r, const gm_bn_t a, const gm_bn_t m) {
     gm_bn_mont_mul(r, a, GM_BN_ONE, m);
 }
 
+/**
+ * 蒙哥马利域模平方，(a * a)(mod m)
+ * @param r 计算结果
+ * @param a 大数a
+ * @param m 模m
+ */
 void gm_bn_sqr(gm_bn_t r, const gm_bn_t a, const gm_bn_t m) {
     gm_bn_mont_mul(r, a, a, m);
 }
 
+/**
+ * 蒙哥马利域模幂，(a ^ b)(mod m)
+ * @param r 计算结果
+ * @param a 大数a
+ * @param b 大数b
+ * @param m 模m
+ */
 void gm_bn_exp(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m) {
     gm_bn_t t;
     uint64_t w;
@@ -324,34 +443,57 @@ void gm_bn_exp(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, const gm_bn_t m) {
     gm_bn_copy(r, t);
 }
 
+/**
+ * 蒙哥马利域模逆，(a ^ -1)(mod m)
+ * @param r 计算结果
+ * @param a 大数a
+ * @param m 模m
+ */
 void gm_bn_inv(gm_bn_t r, const gm_bn_t a, const gm_bn_t m) {
     gm_bn_t e;
     gm_i_bn_sub(e, m, GM_BN_TWO);
     gm_bn_exp(r, a, e, m);
 }
 
+// 将大数设置为蒙哥马利域1
 void gm_bn_set_mont_one(gm_bn_t r) {
     gm_bn_copy(r, GM_BN_MONT_PONE);
 }
 
+// 将大数设置为0
 void gm_bn_set_zero(gm_bn_t r) {
     gm_bn_copy(r, GM_BN_ZERO);
 }
 
+/**
+ * 判断大数是否为蒙哥马利域1
+ * @return 1为true，否则为false
+ */
 int gm_bn_is_mont_one(const gm_bn_t r){
     return memcmp(r, GM_BN_MONT_PONE, sizeof(uint64_t) * 8) == 0;
 }
 
+/**
+ * 判断大数是否为0
+ * @return 1为true，否则为false
+ */
 int gm_bn_is_zero(const gm_bn_t r) {
     return gm_bn_cmp(r, GM_BN_ZERO) == 0;
 }
 
+// 初始化点r为无穷远点
 void gm_point_init(gm_point_t *r) {
     memset(r, 0, sizeof(gm_point_t));
     gm_bn_set_mont_one(r->X);
     gm_bn_set_mont_one(r->Y);
 }
 
+/**
+ * 设置点r的x及y坐标，点r为Jacobian加重射影坐标系
+ * @param r 用于存储结果
+ * @param x x坐标，仿射坐标
+ * @param y y坐标，仿射坐标
+ */
 void gm_point_set_xy(gm_point_t *r, const gm_bn_t x, const gm_bn_t y) {
     gm_bn_to_mont(r->X, x, GM_BN_P);
     gm_bn_to_mont(r->Y, y, GM_BN_P);
@@ -385,7 +527,12 @@ static void gm_point_get_xy_mont(const gm_point_t *p, gm_bn_t x, gm_bn_t y) {
     }
 }
 
-// 转换为普通大数
+/**
+ * 获取点p的x坐标及y坐标
+ * @param p Jacobian加重射影坐标系点p
+ * @param x 存储x坐标，仿射坐标
+ * @param y 存储y坐标，仿射坐标
+ */
 void gm_point_get_xy(const gm_point_t *p, gm_bn_t x, gm_bn_t y) {
     gm_point_get_xy_mont(p, x, y);
     if(x) {
@@ -396,10 +543,19 @@ void gm_point_get_xy(const gm_point_t *p, gm_bn_t x, gm_bn_t y) {
     }
 }
 
+/**
+ * 判断p是否为无穷远点
+ * @return 1为无穷远点，否则不是
+ */
 int gm_is_at_infinity(const gm_point_t *p) {
     return gm_bn_is_zero(p->Z);
 }
 
+/**
+ * 将十六进制串转化为点
+ * @param p 用于存储结果
+ * @param hex 十六进制串
+ */
 void gm_point_from_hex(gm_point_t *p, const char hex[128]) {
     gm_bn_t x;
     gm_bn_t y;
@@ -408,7 +564,12 @@ void gm_point_from_hex(gm_point_t *p, const char hex[128]) {
     gm_point_set_xy(p, x, y);
 }
 
-void gm_point_to_hex(gm_point_t *r, char hex[128]) {
+/**
+ * 将点转化为十六进制串
+ * @param r 待转化的点
+ * @param hex 十六进制缓冲区
+ */
+void gm_point_to_hex(const gm_point_t *r, char hex[128]) {
     gm_bn_t x;
     gm_bn_t y;
     gm_point_get_xy(r, x, y);
@@ -416,6 +577,11 @@ void gm_point_to_hex(gm_point_t *r, char hex[128]) {
     gm_bn_to_hex(y, hex + 64);
 }
 
+/**
+ * 将二进制串转化为点
+ * @param r 用于存储结果
+ * @param in 二进制串
+ */
 void gm_point_from_bytes(gm_point_t *r, const uint8_t in[64]) {
     gm_bn_t x;
     gm_bn_t y;
@@ -424,6 +590,11 @@ void gm_point_from_bytes(gm_point_t *r, const uint8_t in[64]) {
     gm_point_set_xy(r, x, y);
 }
 
+/**
+ * 将点转化为二进制串
+ * @param p 待转化的点
+ * @param out 二进制缓冲区
+ */
 void gm_point_to_bytes(const gm_point_t *p, uint8_t out[64]) {
     gm_bn_t x;
     gm_bn_t y;
@@ -433,6 +604,11 @@ void gm_point_to_bytes(const gm_point_t *p, uint8_t out[64]) {
 }
 
 // 4M+5S
+/**
+ * 倍点算法，r = p + p
+ * @param r 用于存储结果
+ * @param p 待计算点p
+ */
 void gm_point_double(gm_point_t * r, const gm_point_t * p) {
     gm_bn_t tmp1, tmp2;
     gm_bn_t X3, Y3, Z3;
@@ -502,6 +678,12 @@ void gm_point_double(gm_point_t * r, const gm_point_t * p) {
     gm_bn_copy(r->Z, Z3);
 }
 
+/**
+ * 点加算法，r = a + b
+ * @param r 用于存储结果
+ * @param a 待计算点a
+ * @param b 待计算点b
+ */
 void gm_point_add(gm_point_t * r, const gm_point_t * a, const gm_point_t * b) {
     // U1 = X1 * (Z2)^2
     // U2 = X2 * (Z1)^2
@@ -589,6 +771,12 @@ void gm_point_add(gm_point_t * r, const gm_point_t * a, const gm_point_t * b) {
     gm_bn_copy(r->Z, Z3);
 }
 
+/**
+ * 多倍点算法，r = k[p]，即k个p相加
+ * @param r 用于存储结果
+ * @param k 大数k
+ * @param p 待计算点p
+ */
 void gm_point_mul(gm_point_t * r, const gm_bn_t k, const gm_point_t * p) {
     char bits[257] = {0};
     gm_point_t _q;
@@ -607,6 +795,15 @@ void gm_point_mul(gm_point_t * r, const gm_bn_t k, const gm_point_t * p) {
     gm_point_copy(r, q);
 }
 
+/**
+ * 点压缩算法，当需要压缩时，压缩结果表示为：
+ * 0x02 + yTile || x
+ * 当不需要压缩时，结果为：
+ * 0x04 || x || y
+ * @param p 待压缩的点
+ * @param out 压缩后存储数据的缓存区，压缩时大小为33字节，不压缩时大小为65字节
+ * @param compressed 1为需要压缩，非1表示不需要压缩
+ */
 void gm_point_encode(const gm_point_t *p, uint8_t * out, int compressed) {
     if(compressed) {
         gm_bn_t x, y;
@@ -620,6 +817,11 @@ void gm_point_encode(const gm_point_t *p, uint8_t * out, int compressed) {
     }
 }
 
+/**
+ * 点解压缩
+ * @param p 用于存储结果
+ * @param in 未压缩的点（65字节）或压缩的点（33字节）
+ */
 void gm_point_decode(gm_point_t *p, const uint8_t * in) {
     if(in[0] == 0x04) {
         // 未压缩点，直接转化
@@ -641,13 +843,13 @@ void gm_point_decode(gm_point_t *p, const uint8_t * in) {
         gm_bn_sqr(r, x, GM_BN_P);
 
         // r = x^2 + a
-        gm_bn_add(r, r, GM_BN_MOUNT_A, GM_BN_P);
+        gm_bn_add(r, r, GM_BN_MONT_A, GM_BN_P);
 
         // r = x^3 + ax
         gm_bn_mont_mul(r, r, x, GM_BN_P);
 
         // r = x^3 + ax + b
-        gm_bn_add(r, r, GM_BN_MOUNT_B, GM_BN_P);
+        gm_bn_add(r, r, GM_BN_MONT_B, GM_BN_P);
 
         // r = sqrt(x^3 + ax + b) = (x^3 + ax + b) ^ ((P + 1) / 4) (mod P)
         gm_bn_exp(r, r, padd1shit2, GM_BN_P);
@@ -664,10 +866,25 @@ void gm_point_decode(gm_point_t *p, const uint8_t * in) {
     }
 }
 
+/**
+ * SM2签名算法
+ * @param key SM2私钥
+ * @param dgst 消息摘要
+ * @param sig 存储签名结果缓冲区
+ * @return 1如果签名成功，否则签名失败
+ */
 int gm_do_sign(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig) {
     return gm_do_sign_for_test(key, dgst, sig, NULL);
 }
 
+/**
+ * SM2签名算法，方便单元测试
+ * @param key SM2私钥
+ * @param dgst 消息摘要
+ * @param sig 存储签名结果缓冲区
+ * @param testK 随机数
+ * @return 1如果签名成功，否则签名失败
+ */
 int gm_do_sign_for_test(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig, const gm_bn_t testK) {
     gm_point_t _P, *P = &_P;
     gm_bn_t d;
@@ -742,6 +959,13 @@ retry:
     return 1;
 }
 
+/**
+ * SM2验签算法
+ * @param key SM2私钥
+ * @param dgst 消息摘要
+ * @param sig 签名结果，用于验签
+ * @return 1如果验签成功，否则验签失败
+ */
 int gm_do_verify(const gm_point_t *key, const gm_bn_t dgst, const unsigned char *sig) {
     gm_point_t _P, *P = &_P;
     gm_point_t _Q, *Q = &_Q;

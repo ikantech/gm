@@ -4,6 +4,7 @@
 
 #include "sm3.h"
 
+// 寄存器初始值
 #define GM_SM3_IV_A 0x7380166f
 #define GM_SM3_IV_B 0x4914b2b9
 #define GM_SM3_IV_C 0x172442d7
@@ -13,21 +14,26 @@
 #define GM_SM3_IV_G 0xe38dee4d
 #define GM_SM3_IV_H 0xb0fb0e4e
 
+// Tj常量
 #define GM_SM3_T_0 0x79CC4519
 #define GM_SM3_T_1 0x7A879D8A
 
+// FFj函数
 #define GM_SM3_FF_0(x,y,z) ( (x) ^ (y) ^ (z) )
 #define GM_SM3_FF_1(x,y,z) ( ( (x) & (y) ) | ( (x) & (z) ) | ( (y) & (z) ) )
 
+// GGj函数
 #define GM_SM3_GG_0(x,y,z) ( (x) ^ (y) ^ (z) )
 #define GM_SM3_GG_1(x,y,z) ( ( (x) & (y) ) | ( (~(x)) & (z) ) )
 
-#define  GM_SM3_SHL(x,n) (((x) & 0xFFFFFFFF) << (n % 32))
-#define GM_SM3_ROTL(x,n) (GM_SM3_SHL((x),n) | ((x) >> (32 - (n % 32))))
+// 循环左移
+#define GM_SM3_ROTL(x, b) ((((x) & 0xFFFFFFFF) << (b)) | ((x) >> (0x20 - (b))))
 
+// P0 P1函数
 #define GM_SM3_P_0(x) ((x) ^  GM_SM3_ROTL((x),9) ^ GM_SM3_ROTL((x),17))
 #define GM_SM3_P_1(x) ((x) ^  GM_SM3_ROTL((x),15) ^ GM_SM3_ROTL((x),23))
 
+// 字节转化为字
 #ifndef GM_GET_UINT32_BE
 #define GM_GET_UINT32_BE(n,b,i)                         \
 {                                                       \
@@ -38,6 +44,7 @@
 }
 #endif
 
+// 字转化为字节
 #ifndef GM_PUT_UINT32_BE
 #define GM_PUT_UINT32_BE(n, b ,i)                            \
 {                                                       \
@@ -48,6 +55,7 @@
 }
 #endif
 
+// 消息扩展，消息Bi -> W
 static void gm_sm3_BiToW(const unsigned char * Bi, unsigned int * W)
 {
     int i;
@@ -88,6 +96,7 @@ static void gm_sm3_WToW1(const unsigned int * W, unsigned int * W1)
     }
 }
 
+// 压缩算法
 static void gm_sm3_CF(const unsigned int * W, const unsigned int * W1, gm_sm3_context * ctx)
 {
     unsigned int SS1;
@@ -183,6 +192,10 @@ static void gm_sm3_compress(gm_sm3_context * ctx)
     gm_sm3_CF(W, W1, ctx);
 }
 
+/**
+ * 摘要算法初始化
+ * @param ctx 上下文
+ */
 void gm_sm3_init(gm_sm3_context * ctx) {
     ctx->state[0] = GM_SM3_IV_A;
     ctx->state[1] = GM_SM3_IV_B;
@@ -196,6 +209,12 @@ void gm_sm3_init(gm_sm3_context * ctx) {
     ctx->compressed_len = 0;
 }
 
+/**
+ * 添加消息
+ * @param ctx 上下文
+ * @param input 消息
+ * @param iLen 消息长度（字节）
+ */
 void gm_sm3_update(gm_sm3_context * ctx, const unsigned char * input, unsigned int iLen) {
     while (iLen--)
     {
@@ -220,6 +239,11 @@ static const unsigned char gm_sm3_padding[64] = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
+/**
+ * 计算摘要
+ * @param ctx 上下文
+ * @param output 输出摘要结果
+ */
 void gm_sm3_done(gm_sm3_context * ctx, unsigned char * output) {
     uint32_t padn;
     unsigned char msglen[8];
@@ -240,6 +264,7 @@ void gm_sm3_done(gm_sm3_context * ctx, unsigned char * output) {
     gm_sm3_update(ctx, (unsigned char *) gm_sm3_padding, padn);
     gm_sm3_update(ctx, msglen, 8);
 
+    // output
     GM_PUT_UINT32_BE(ctx->state[0], output,  0);
     GM_PUT_UINT32_BE(ctx->state[1], output,  4);
     GM_PUT_UINT32_BE(ctx->state[2], output,  8);
@@ -250,6 +275,12 @@ void gm_sm3_done(gm_sm3_context * ctx, unsigned char * output) {
     GM_PUT_UINT32_BE(ctx->state[7], output, 28);
 }
 
+/**
+ * 直接计算消息的摘要
+ * @param input 消息
+ * @param iLen 消息长度（字节）
+ * @param output 输出摘要结果
+ */
 void gm_sm3(const unsigned char * input, unsigned int iLen, unsigned char * output) {
     gm_sm3_context ctx;
     gm_sm3_init(&ctx);
