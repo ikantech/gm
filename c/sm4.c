@@ -98,19 +98,9 @@ static void sm4_key_schedule(const unsigned char * key, unsigned int * rk)
 	}
 }
 
-/**
- * sm4加解密算法
- * @param key sm4 密钥
- * @param forEncryption 1为加密，否则为解密
- * @param in 待计算数据, 16字节
- * @param out 输出缓冲区, 16字节
- */
-void gm_sm4_crypt(const unsigned char *key, int forEncryption, const unsigned char *in, unsigned char *out)
-{
-	unsigned int rk[32], X[36], tmp1, tmp2;
+static void one_round(unsigned int rk[32], int forEncryption, const unsigned char *in, unsigned char *out) {
+	unsigned int X[36], tmp1, tmp2;
 	int i;
-
-	sm4_key_schedule(key, rk);
 
 	// transfer input
 	GM_GET_UINT32_BE( X[0], in, 0);
@@ -140,6 +130,22 @@ void gm_sm4_crypt(const unsigned char *key, int forEncryption, const unsigned ch
 }
 
 /**
+ * sm4加解密算法
+ * @param key sm4 密钥
+ * @param forEncryption 1为加密，否则为解密
+ * @param in 待计算数据, 16字节
+ * @param out 输出缓冲区, 16字节
+ */
+void gm_sm4_crypt(const unsigned char *key, int forEncryption, const unsigned char *in, unsigned char *out)
+{
+	unsigned int rk[32];
+
+	sm4_key_schedule(key, rk);
+
+	one_round(rk, forEncryption, in, out);
+}
+
+/**
  * 初始化sm4算法
  * @param ctx sm4 上下文
  * @param key sm4 密钥
@@ -149,7 +155,62 @@ void gm_sm4_crypt(const unsigned char *key, int forEncryption, const unsigned ch
  */
 void gm_sm4_init(gm_sm4_context * ctx, const unsigned char *key, 
 	int forEncryption, int pkcs7Padding, const unsigned char *iv) {
+	// 所有代码基本不判断参数合法性，业务层做好相应工作
 
+	// 密钥扩展
+	sm4_key_schedule(key, ctx->rk);
+
+	// 初始化各状态
+	ctx->state = ctx->cur_buf_len = ctx->total_len = 0;
+
+	if(forEncryption) {
+		ctx->state |= 0x01;
+	}
+
+	if(pkcs7Padding) {
+		ctx->state |= 0x02;
+	}
+
+	if(iv != NULL) {
+		memcpy(ctx->iv, iv, 16);
+		ctx->state |= 0x04;
+	}
+}
+
+static void update_one_round(gm_sm4_context * ctx, unsigned char * output) {
+	int isCBC = (ctx->state & 0x04) > 0;
+	int i;
+
+	if(ctx->state & 0x01) {
+    	// 加密
+
+    	if(isCBC) {
+        	// 先与IV异或，再加密
+        	for(i = 0; i < 16; i++) {
+        		ctx->buf[i] ^= ctx->iv[i];
+        	}
+        }
+
+    	one_round(ctx->rk, 1, ctx->buf, output);
+
+    	if(isCBC) {
+        	// 将密文作为下一轮的IV
+        	memcpy(ctx->iv, output, 16);
+        }
+    }else {
+    	// 解密
+
+    	// 先解密，如果是CBC模式，再与IV进行异或
+    	one_round(ctx->rk, 0, ctx->buf, output);
+
+    	if(isCBC) {
+        	for(i = 0; i < 16; i++) {
+        		output[i] ^= ctx->iv[i];
+        		// 将这一轮的密文作为下一轮的IV
+        		ctx->iv[i] = ctx->buf[i];
+        	}
+        }
+    }
 }
 
 /**
@@ -161,15 +222,77 @@ void gm_sm4_init(gm_sm4_context * ctx, const unsigned char *key,
  * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数
  */
 int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned int iLen, unsigned char * output) {
-	return 0;
+	int rLen = 0;
+
+	while(iLen--) {
+		ctx->buf[ctx->cur_buf_len++] = *input++;
+
+        /* 是否满16个字节，这里要留一轮，要不调用gm_sm4_done时就不好处理填充了 */
+        if (ctx->cur_buf_len == 16 && iLen > 0) {
+            // 满了，则立即调用轮函数进行处理
+            update_one_round(ctx, output + rLen);
+            ctx->total_len += 16;
+            ctx->cur_buf_len = 0;
+            rLen += 16;
+        }
+	}
+	return rLen;
 }
 
 /**
  * 结束加解密计算
  * @param ctx sm4 上下文
  * @param output 输出缓冲区
- * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数
+ * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数，-1表示加解失败
  */
 int gm_sm4_done(gm_sm4_context * ctx, unsigned char * output) {
-	return 0;
+	int rLen = 0;
+
+	// 事先处理未满16字节加密时的填充
+	int pad = 0;
+	if((ctx->state & 0x01) && (ctx->state & 0x02) && (ctx->cur_buf_len != 16)) {
+		// 如果是加密，PKCS7Padding，并且是未满16字节，则填充
+		pad = 16 - ctx->cur_buf_len;
+		memset(ctx->buf + ctx->cur_buf_len, pad, pad);
+		ctx->cur_buf_len += pad;
+	}
+
+	if(ctx->cur_buf_len != 16) {
+		// 要求待处理数据正好是16的倍数，
+		// 我们在gm_sm4_update函数中留了一轮，如果这时如果当前数据长度不等于16，就说明待处理数据不是16的倍数
+		return -1;
+	}
+	update_one_round(ctx, output);
+	ctx->total_len += 16;
+    ctx->cur_buf_len = 0;
+	rLen = 16;
+
+	if(ctx->state & 0x01) {
+		// 加密
+		if((ctx->state & 0x02)) {
+			// PKCS7Padding
+			if(pad == 0) {
+				// 未进行事先的填充，则说明数据正好是16的倍数，则需要填充一个数据块
+				// 再填充，再加密
+				memset(ctx->buf, 16, 16);
+				ctx->cur_buf_len = 16;
+				update_one_round(ctx, output + rLen);
+				ctx->total_len += 16;
+	            ctx->cur_buf_len = 0;
+				rLen += 16;
+			}
+		}
+	}else {
+		// 解密
+		if((ctx->state & 0x02)) {
+			// PKCS7Padding
+			if(output[15] > 16) {
+				// 如果是PKCS7Padding，则output最后一个字节肯定是填充字节，那其值肯定要小于等于16
+				return -1;
+			}
+			rLen -= output[15];
+		}
+	}
+
+	return rLen;
 }

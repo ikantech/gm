@@ -6,8 +6,13 @@ extern "C" {
 #endif
 
 typedef struct {
-	unsigned int rk[32];
-}gm_sm4_context;
+	unsigned int rk[32];           // 轮密钥
+	unsigned char buf[16];         // 待加密数据
+	unsigned char iv[16];          // CBC IV向量
+	unsigned int cur_buf_len;      // 当前待压缩消息长度（字节）
+	unsigned int total_len;        // 已加密数据长度（字节）
+	unsigned int state;            // 0比特标识是否为加密，1比特标识是否为PKCS7填充，2比特标识是否为CBC加密
+} gm_sm4_context;
 
 /**
  * sm4加解密算法
@@ -43,7 +48,7 @@ int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned in
  * 结束加解密计算
  * @param ctx sm4 上下文
  * @param output 输出缓冲区
- * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数
+ * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数，-1表示加解失败
  */
 int gm_sm4_done(gm_sm4_context * ctx, unsigned char * output);
 
