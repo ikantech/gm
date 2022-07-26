@@ -29,6 +29,12 @@ extern const gm_bn_t GM_BN_N;
 // SM2 蒙哥马利域 G
 extern const gm_point_t * GM_MONT_G;
 
+// 蒙哥马利域, SM2 A
+extern const gm_bn_t GM_BN_MONT_A;
+
+// 蒙哥马利域, SM2 B
+extern const gm_bn_t GM_BN_MONT_B;
+
 // 将大数a拷贝到r
 #define gm_bn_copy(r, a) memcpy((r), (a), sizeof(gm_bn_t))
 

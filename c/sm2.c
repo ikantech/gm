@@ -36,10 +36,22 @@ static const unsigned char GM_ECC_G_Y[] = {
         0x02, 0xDF, 0x32, 0xE5, 0x21, 0x39, 0xF0, 0xA0
 };
 
-//void gm_sm2_init(gm_sm2_context * ctx) {
-//    gm_bn_set_zero(ctx->private_key);
-//    gm_point_init(&ctx->public_key)
-//}
+// SM2 N-1
+static const gm_bn_t GM_BN_N_SUB_ONE = {
+        0x39D54122, 0x53BBF409, 0x21C6052B, 0x7203DF6B,
+        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE
+};
+
+// 字转化为字节
+#ifndef GM_PUT_UINT32_BE
+#define GM_PUT_UINT32_BE(n, b ,i)                       \
+{                                                       \
+    (b)[(i)    ] = (unsigned char) ( (n) >> 24 );       \
+    (b)[(i) + 1] = (unsigned char) ( (n) >> 16 );       \
+    (b)[(i) + 2] = (unsigned char) ( (n) >>  8 );       \
+    (b)[(i) + 3] = (unsigned char) ( (n)       );       \
+}
+#endif
 
 /**
  * ZA计算，具体参照规范文档
@@ -113,4 +125,226 @@ void gm_sm2_compute_msg_hash(const unsigned char * input, unsigned iLen,
     gm_sm3_update(ctx, input, iLen);
 
     gm_sm3_done(ctx, output);
+}
+
+/**
+ * 检查公钥是否合法
+ * @param pub_key 公钥
+ * @return 1合法，否则非法
+ */
+static int gm_sm2_check_public_key(const gm_point_t * pub_key) {
+    if(gm_is_at_infinity(pub_key)) {
+        return 0;
+    }
+    gm_bn_t x, y, r;
+    gm_point_get_xy(pub_key, x, y);
+
+    if(gm_bn_is_zero(x) || gm_bn_cmp(x, GM_BN_P) >= 0) {
+        return 0;
+    }
+
+    if(gm_bn_is_zero(y) || gm_bn_cmp(y, GM_BN_P) >= 0) {
+        return 0;
+    }
+
+    //y^2 = x^3 + ax + b
+    gm_bn_to_mont(x, x, GM_BN_P);
+    gm_bn_to_mont(y, y, GM_BN_P);
+
+    // r = x ^ 2
+    gm_bn_sqr(r, x, GM_BN_P);
+
+    // r = x^2 + a
+    gm_bn_add(r, r, GM_BN_MONT_A, GM_BN_P);
+
+    // r = x^3 + ax
+    gm_bn_mont_mul(r, r, x, GM_BN_P);
+
+    // r = x^3 + ax + b
+    gm_bn_add(r, r, GM_BN_MONT_B, GM_BN_P);
+
+    gm_bn_sqr(y, y, GM_BN_P);
+
+    if(gm_bn_cmp(r, y) != 0) {
+        return 0;
+    }
+
+    return 1;
+}
+
+/**
+ * 加解密初始化
+ * @param ctx SM2上下文
+ * @param key 公钥PC||x||y或者yTile||x用于加密，私钥用于解密
+ * @param kLen 公钥长度必须为33或65，私钥为32字节
+ * @param forEncryption 1为加密，否则为解密
+ * @return 1返回成功，否则为密钥非法
+ */
+int gm_sm2_crypt_init(gm_sm2_context * ctx, const unsigned char * key, unsigned int kLen, int forEncryption, unsigned char * c1) {
+    gm_bn_t k;
+    uint8_t buf[256] = {0};
+    if(forEncryption) {
+        // rand k in [1, n - 1]
+        do {
+            do {
+                randombytes(buf, 256);
+#ifdef GM_RAND_SM3
+                gm_sm3(buf, 256, buf);
+#endif
+                gm_bn_from_bytes(k, buf);
+            } while (gm_bn_cmp(k, GM_BN_N) >= 0);
+        } while (gm_bn_is_zero(k));
+    }
+    return gm_sm2_crypt_init_for_test(ctx, key, kLen, forEncryption, c1, k);
+}
+
+int gm_sm2_crypt_init_for_test(gm_sm2_context * ctx, const unsigned char * key, unsigned int kLen, 
+    int forEncryption, unsigned char * c1, const gm_bn_t test_key) {
+    gm_point_t p;
+
+    if(forEncryption) {
+        if((kLen != 33 && kLen != 65) || (key[0] != 0x04 && key[0] != 0x02 && key[0] != 0x03)) {
+            return 0;
+        }
+        // check public key
+        gm_point_decode(&ctx->public_key, key);
+        if(gm_sm2_check_public_key(&ctx->public_key) != 1) {
+            return 0;
+        }
+        gm_point_mul(&p, test_key, GM_MONT_G);
+        gm_point_to_bytes(&p, c1 + 1);
+        c1[0] = 0x04;
+
+        gm_point_mul(&p, test_key, &ctx->public_key);
+        gm_point_to_bytes(&p, ctx->x2y2);
+    }else {
+        if(kLen != 32) {
+            return 0;
+        }
+        gm_bn_from_bytes(ctx->private_key, key);
+        // check k ∈ [1, n-2]
+        if(gm_bn_is_zero(ctx->private_key) || gm_bn_cmp(ctx->private_key, GM_BN_N_SUB_ONE) >= 0) {
+            return 0;
+        }
+        // check public key
+        gm_point_mul(&ctx->public_key, ctx->private_key, GM_MONT_G);
+        if(gm_sm2_check_public_key(&ctx->public_key) != 1) {
+            return 0;
+        }
+
+        if(c1[0] == 0x04) {
+            gm_point_from_bytes(&p, c1 + 1);
+        }else {
+            gm_point_from_bytes(&p, c1);
+        }
+        gm_point_mul(&p, ctx->private_key, &p);
+        gm_point_to_bytes(&p, ctx->x2y2);
+    }
+    ctx->state = forEncryption;
+    ctx->cur_buf_len = 0;
+    ctx->ct = 1;
+    gm_sm3_init(&ctx->sm3_ctx);
+    gm_sm3_update(&ctx->sm3_ctx, ctx->x2y2, 32);
+    return 1;
+}
+
+/**
+ * 加解密一轮
+ * @param ctx SM2上下文
+ * @param output 输出缓冲区
+ * @param len 本轮待处理数据长度
+ */
+static void crypt_update_one_round(gm_sm2_context * ctx, unsigned char * output, int len) {
+    int i;
+
+    // KDF
+    gm_sm3_context sm3_ctx;
+    gm_sm3_init(&sm3_ctx);
+    gm_sm3_update(&sm3_ctx, ctx->x2y2, 64);
+
+    GM_PUT_UINT32_BE(ctx->ct, output, 0);
+    gm_sm3_update(&sm3_ctx, output, 4);
+    gm_sm3_done(&sm3_ctx, output);
+
+    for(i = 0; i < len; i++) {
+        output[i] ^= ctx->buf[i];
+    }
+
+    if(ctx->state) {
+        // 加密
+        gm_sm3_update(&ctx->sm3_ctx, ctx->buf, len);
+    }else {
+        // 解密
+        gm_sm3_update(&ctx->sm3_ctx, output, len);
+    }
+
+    ctx->cur_buf_len = 0;
+    ctx->ct++;
+}
+
+/**
+ * 加解密添加数据
+ * @param ctx SM2上下文
+ * @param input 待处理数据
+ * @param iLen 待处理数据长度
+ * @param output 输出缓冲区，必须是32字节的倍数，要比iLen大
+ * @return 返回已处理的数据长度
+ */
+int gm_sm2_crypt_update(gm_sm2_context * ctx, const unsigned char * input, unsigned int iLen, unsigned char * output) {
+    int rLen = 0;
+
+    while(iLen--) {
+        ctx->buf[ctx->cur_buf_len++] = *input++;
+
+        // 是否满一轮
+        if(ctx->cur_buf_len == 32) {
+            crypt_update_one_round(ctx, output + rLen, 32);
+            rLen += 32;
+        }
+    }
+
+
+    return rLen;
+}
+
+/**
+ * 结束加解密
+ * @param ctx SM2上下文
+ * @param output 输出缓冲区，必须是32字节的倍数，至少为32字节
+ * @param c3 加解密都会输出C3，解密时，需要业务层再比较是否一致
+ * @return 返回已处理的数据长度
+ */
+int gm_sm2_crypt_done(gm_sm2_context * ctx, unsigned char * output, unsigned char * c3) {
+    int rLen = ctx->cur_buf_len;
+    crypt_update_one_round(ctx, output, rLen);
+
+    gm_sm3_update(&ctx->sm3_ctx, ctx->x2y2 + 32, 32);
+    gm_sm3_done(&ctx->sm3_ctx, c3);
+    return rLen;
+}
+
+/**
+ * 生成SM2密钥对
+ * @param private_key 私钥输出缓冲区
+ * @param public_key 公钥输出缓冲区
+ */
+void gm_sm2_gen_keypair(gm_bn_t private_key, gm_point_t * public_key) {
+    unsigned char buf[256];
+    do {
+        // rand private_key in [1, n - 2]
+        do {
+            do {
+                randombytes(buf, 256);
+    #ifdef GM_RAND_SM3
+                gm_sm3(buf, 256, buf);
+    #endif
+                gm_bn_from_bytes(private_key, buf);
+            } while (gm_bn_cmp(private_key, GM_BN_N_SUB_ONE) >= 0);
+        } while (gm_bn_is_zero(private_key));
+
+        // 从私钥中计算公钥
+        gm_point_mul(public_key, private_key, GM_MONT_G);
+
+        // check public key
+    } while(gm_sm2_check_public_key(public_key) != 1);
 }

@@ -46,7 +46,7 @@
 
 // 字转化为字节
 #ifndef GM_PUT_UINT32_BE
-#define GM_PUT_UINT32_BE(n, b ,i)                            \
+#define GM_PUT_UINT32_BE(n, b ,i)                       \
 {                                                       \
     (b)[(i)    ] = (unsigned char) ( (n) >> 24 );       \
     (b)[(i) + 1] = (unsigned char) ( (n) >> 16 );       \

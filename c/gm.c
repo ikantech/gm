@@ -90,13 +90,13 @@ static const gm_point_t _GM_MONT_G = {
 const gm_point_t * GM_MONT_G = &_GM_MONT_G;
 
 // 蒙哥马利域, SM2 A
-static const gm_bn_t GM_BN_MONT_A = {
+const gm_bn_t GM_BN_MONT_A = {
     0xFFFFFFFC, 0xFFFFFFFF, 0x00000003, 0xFFFFFFFC,
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFB
 };
 
 // 蒙哥马利域, SM2 B
-static const gm_bn_t GM_BN_MONT_B = {
+const gm_bn_t GM_BN_MONT_B = {
     0x2BC0DD42, 0x90D23063, 0xE9B537AB, 0x71CF379A, 
     0x5EA51C3C, 0x52798150, 0xBA20E2C8, 0x240FE188
 };

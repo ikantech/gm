@@ -16,7 +16,7 @@ typedef struct {
     unsigned char buf[64]; // 待压缩消息
     unsigned int cur_buf_len; // 当前待压缩消息长度（字节）
     uint64_t compressed_len; // 已压缩消息长度（比特）
-}gm_sm3_context;
+} gm_sm3_context;
 
 /**
  * 摘要算法初始化
