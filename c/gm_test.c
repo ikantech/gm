@@ -597,6 +597,65 @@ void test_sm2_key_exch() {
     printf("test result: ok\n");
 }
 
+void test_sm2_ctx_sv() {
+    unsigned char input[60] = {0};
+    unsigned char buf[64] = {0};
+    unsigned char userId[3] = {0x61, 0x62, 0x63};
+
+    gm_bn_t k, dgst;
+    gm_point_t p;
+    gm_sm2_context ctx;
+
+    unsigned char testPrivK[32] = {0};
+    unsigned char testPubK[65] = {0};
+
+    gm_hex2bin("3D325BAA32B2A2437FFB471901FD7C0D218FEF5B9BCF5187431DC4B23330FB16", 64, testPrivK);
+    gm_hex2bin("04328B2B5CEB896FB409FAD358F8228F8FD17A9AED7F9C78B1D78AAD45D2514EA1CC615C5184B1CA6C8462DC3ED541E2D7666FEB6C5293FB1B7E60CBE8DF203D2F", 130, testPubK);
+    gm_bn_from_bytes(k, testPrivK);
+    gm_point_from_bytes(&p, testPubK + 1);
+
+    gm_hex2bin("32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C791167A5EE1C13B05D6A1ED99AC24C3C33E7981EDDCA6C05061328990", 
+        120, input);
+
+    // 旧方法签名
+    gm_sm2_compute_msg_hash(input, 60, userId, 3, &p, buf);
+    gm_bn_from_bytes(dgst, buf);
+    if(gm_do_sign_for_test(k, dgst, buf, k) != 1) {
+        printf("test result sign: fail\n");
+        return;
+    }
+
+    //新方法验签
+    if(gm_sm2_sign_init(&ctx, testPubK, 65, userId, 3, 0) == 0) {
+        printf("test result sign init: fail\n");
+        return;
+    }
+    gm_sm2_sign_update(&ctx, input, 60);
+    if(gm_sm2_sign_done_for_test(&ctx, buf, k) != 1) {
+        printf("test result verify: fail\n");
+        return;
+    }
+
+    // 新方法签名
+    if(gm_sm2_sign_init(&ctx, testPrivK, 32, userId, 3, 1) == 0) {
+        printf("test result sign init: fail1\n");
+        return;
+    }
+    gm_sm2_sign_update(&ctx, input, 60);
+    if(gm_sm2_sign_done_for_test(&ctx, buf, k) != 1) {
+        printf("test result sign: fail1\n");
+        return;
+    }
+
+    // 旧方法验签
+    if(gm_do_verify(&p, dgst, buf) != 1) {
+        printf("test result verify: fail1\n");
+        return;
+    }
+
+    printf("test result: ok\n");
+}
+
 void test(const char ** argv) {
     /** base ops **/
     TEST_BN_ALG("gmp_to_mont",
@@ -823,6 +882,10 @@ void test(const char ** argv) {
     if(strcmp(argv[1], "sm2_key_exch") == 0) {
         test_sm2_key_exch();
     }
+
+    if(strcmp(argv[1], "sm2_ctx_sv") == 0) {
+        test_sm2_ctx_sv();
+    }
 }
 
 int main(int argc, char ** argv) {
@@ -831,7 +894,7 @@ int main(int argc, char ** argv) {
 
     if(strcmp(argv[1], "test_all") == 0) {
         int i;
-        char * algs[37] = {
+        char * algs[39] = {
                 "gmp_to_mont",
                 "gmn_to_mont",
                 "gmp_from_mont",
@@ -868,9 +931,11 @@ int main(int argc, char ** argv) {
                 "sm4_cbc_pkcs7",
                 "sm4_cbc_nopad",
                 "sm2_crypt",
-                "sm2_gen_keypair"
+                "sm2_gen_keypair",
+                "sm2_key_exch",
+                "sm2_ctx_sv"
         };
-        for(i = 0; i < 37; i++) {
+        for(i = 0; i < 39; i++) {
             argv[1] = algs[i];
             printf("\n%s:\n", argv[1]);
             test(argv);

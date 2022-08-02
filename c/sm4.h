@@ -21,7 +21,7 @@ typedef struct {
  * @param in 待计算数据, 16字节
  * @param out 输出缓冲区, 16字节
  */
-void gm_sm4_crypt(const unsigned char *key, int forEncryption, const unsigned char *in, unsigned char *out);
+void gm_sm4_crypt(const unsigned char key[16], int forEncryption, const unsigned char in[16], unsigned char out[16]);
 
 /**
  * 初始化sm4算法
@@ -31,15 +31,15 @@ void gm_sm4_crypt(const unsigned char *key, int forEncryption, const unsigned ch
  * @param pkcs7Padding 1为pkcs7填充，否则为不填充
  * @param iv 16字节向量，NULL表示ECB加密，非NULL表示CBC加密
  */
-void gm_sm4_init(gm_sm4_context * ctx, const unsigned char *key, 
-	int forEncryption, int pkcs7Padding, const unsigned char *iv);
+void gm_sm4_init(gm_sm4_context * ctx, const unsigned char key[16], 
+	int forEncryption, int pkcs7Padding, const unsigned char iv[16]);
 
 /**
  * 添加待加解密数据，sm4每16字节为一组
  * @param ctx sm4 上下文
  * @param input 待计算数据
  * @param iLen 待计算数据长度
- * @param output 输出缓冲区
+ * @param output 输出缓冲区，长度 >= ((iLen + 15) / 16) * 16
  * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数
  */
 int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned int iLen, unsigned char * output);
@@ -47,7 +47,7 @@ int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned in
 /**
  * 结束加解密计算
  * @param ctx sm4 上下文
- * @param output 输出缓冲区
+ * @param output 输出缓冲区，长度 >= 16字节
  * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数，-1表示加解失败
  */
 int gm_sm4_done(gm_sm4_context * ctx, unsigned char * output);

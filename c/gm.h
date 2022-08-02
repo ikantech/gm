@@ -285,7 +285,7 @@ void gm_point_mul(gm_point_t * r, const gm_bn_t k, const gm_point_t * p);
  * @param sig 存储签名结果缓冲区
  * @return 1如果签名成功，否则签名失败
  */
-int gm_do_sign(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig);
+int gm_do_sign(const gm_bn_t key, const gm_bn_t dgst, unsigned char sig[64]);
 
 /**
  * SM2签名算法，方便单元测试
@@ -295,7 +295,7 @@ int gm_do_sign(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig);
  * @param testK 随机数
  * @return 1如果签名成功，否则签名失败
  */
-int gm_do_sign_for_test(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig, const gm_bn_t testK);
+int gm_do_sign_for_test(const gm_bn_t key, const gm_bn_t dgst, unsigned char sig[64], const gm_bn_t testK);
 
 /**
  * SM2验签算法
@@ -304,7 +304,7 @@ int gm_do_sign_for_test(const gm_bn_t key, const gm_bn_t dgst, unsigned char *si
  * @param sig 签名结果，用于验签
  * @return 1如果验签成功，否则验签失败
  */
-int gm_do_verify(const gm_point_t *key, const gm_bn_t dgst, const unsigned char *sig);
+int gm_do_verify(const gm_point_t *key, const gm_bn_t dgst, const unsigned char sig[64]);
 
 # ifdef  __cplusplus
 }

@@ -42,20 +42,51 @@ typedef struct {
  * @param output 输出 RA or RB || ZA or ZB || WA or WB
  */
 void gm_sm2_exch_init(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t * public_key, 
-  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char * output);
+  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char output[160]);
 
 void gm_sm2_exch_init_for_test(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t * public_key, 
   gm_bn_t tmp_private_key, gm_point_t * tmp_public_key, 
-  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char * output);
+  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char output[160]);
 
 /**
  * 计算密钥K，S1/SB、S2/SA
  * @param ctx 上下文
  * @param peerData 对方初始化信息 R || Z || w
  * @param kLen 协商的密钥长度（单位字节）
- * @param output 输出密钥 k || S1/SB || S2/SA
+ * @param output 输出密钥 k || S1/SB || S2/SA，长度为kLen + 64
  */
 void gm_sm2_exch_calculate(gm_sm2_exch_context * ctx, const unsigned char * peerData, int kLen, unsigned char * output);
+
+/**
+ * 签名验签初始化
+ * @param ctx SM2上下文
+ * @param key 公钥PC||x||y或者yTile||x用于验签，私钥用于签名
+ * @param kLen 公钥长度必须为33或65，私钥为32字节
+ * @param id_bytes userid二进制串
+ * @param idLen userid长度
+ * @param forSign 1为签名，否则为验签
+ * @return 1返回成功，否则为密钥非法
+ */
+int gm_sm2_sign_init(gm_sm2_context * ctx, const unsigned char * key, unsigned int kLen, 
+  const unsigned char * id_bytes, unsigned int idLen, int forSign);
+
+/**
+ * 添加待签名验签数据
+ * @param ctx SM2上下文
+ * @param input 待处理数据
+ * @param iLen 待处理数据长度
+ */
+void gm_sm2_sign_update(gm_sm2_context * ctx, const unsigned char * input, unsigned int iLen);
+
+/**
+ * 结束签名或验签
+ * @param ctx SM2上下文
+ * @param sig 如果是签名则作为输出缓冲区，如果是验签，则传入签名串用于验签
+ * @return 1签名或验签成功，否则为失败
+ */
+int gm_sm2_sign_done(gm_sm2_context * ctx, unsigned char sig[64]);
+
+int gm_sm2_sign_done_for_test(gm_sm2_context * ctx, unsigned char sig[64], const gm_bn_t testKey);
 
 /**
  * 加解密初始化
@@ -66,7 +97,7 @@ void gm_sm2_exch_calculate(gm_sm2_exch_context * ctx, const unsigned char * peer
  * @param c1 解密传入C1的值PC||x||y，加密时作为C1输出缓冲区
  * @return 1返回成功，否则为密钥非法
  */
-int gm_sm2_crypt_init(gm_sm2_context * ctx, const unsigned char * key, unsigned int kLen, int forEncryption, unsigned char * c1);
+int gm_sm2_crypt_init(gm_sm2_context * ctx, const unsigned char * key, unsigned int kLen, int forEncryption, unsigned char c1[65]);
 
 /**
  * 加解密初始化，单元测试专用
@@ -79,7 +110,7 @@ int gm_sm2_crypt_init(gm_sm2_context * ctx, const unsigned char * key, unsigned 
  * @return 1返回成功，否则为密钥非法
  */
 int gm_sm2_crypt_init_for_test(gm_sm2_context * ctx, const unsigned char * key, unsigned int kLen, 
-	int forEncryption, unsigned char * c1, const gm_bn_t test_key);
+	int forEncryption, unsigned char c1[65], const gm_bn_t test_key);
 
 /**
  * 加解密添加数据
@@ -98,7 +129,7 @@ int gm_sm2_crypt_update(gm_sm2_context * ctx, const unsigned char * input, unsig
  * @param c3 加解密都会输出C3，解密时，需要业务层再比较是否一致
  * @return 返回已处理的数据长度
  */
-int gm_sm2_crypt_done(gm_sm2_context * ctx, unsigned char * output, unsigned char * c3);
+int gm_sm2_crypt_done(gm_sm2_context * ctx, unsigned char * output, unsigned char c3[32]);
 
 /**
  * ZA计算，具体参照规范文档
@@ -108,7 +139,7 @@ int gm_sm2_crypt_done(gm_sm2_context * ctx, unsigned char * output, unsigned cha
  * @param output 输出缓冲区
  */
 void gm_sm2_compute_z_digest(const unsigned char * id_bytes, unsigned int idLen, const gm_point_t * pub_key,
-                             unsigned char * output);
+                             unsigned char output[32]);
 
 /**
  * 用于SM2签名验签时消息摘要的计算，output  = SM3(ZA||M)
@@ -121,7 +152,7 @@ void gm_sm2_compute_z_digest(const unsigned char * id_bytes, unsigned int idLen,
  */
 void gm_sm2_compute_msg_hash(const unsigned char * input, unsigned iLen,
                              const unsigned char * id_bytes, unsigned int idLen,
-                             const gm_point_t * pub_key, unsigned char * output);
+                             const gm_point_t * pub_key, unsigned char output[32]);
 
 /**
  * 生成SM2密钥对

@@ -136,7 +136,7 @@ static void one_round(unsigned int rk[32], int forEncryption, const unsigned cha
  * @param in 待计算数据, 16字节
  * @param out 输出缓冲区, 16字节
  */
-void gm_sm4_crypt(const unsigned char *key, int forEncryption, const unsigned char *in, unsigned char *out)
+void gm_sm4_crypt(const unsigned char key[16], int forEncryption, const unsigned char in[16], unsigned char out[16])
 {
 	unsigned int rk[32];
 
@@ -153,8 +153,8 @@ void gm_sm4_crypt(const unsigned char *key, int forEncryption, const unsigned ch
  * @param pkcs7Padding 1为pkcs7填充，否则为不填充
  * @param iv 16字节向量，NULL表示ECB加密，非NULL表示CBC加密
  */
-void gm_sm4_init(gm_sm4_context * ctx, const unsigned char *key, 
-	int forEncryption, int pkcs7Padding, const unsigned char *iv) {
+void gm_sm4_init(gm_sm4_context * ctx, const unsigned char key[16], 
+	int forEncryption, int pkcs7Padding, const unsigned char iv[16]) {
 	// 所有代码基本不判断参数合法性，业务层做好相应工作
 
 	// 密钥扩展

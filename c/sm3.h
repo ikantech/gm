@@ -37,7 +37,7 @@ void gm_sm3_update(gm_sm3_context * ctx, const unsigned char * input, unsigned i
  * @param ctx 上下文
  * @param output 输出摘要结果
  */
-void gm_sm3_done(gm_sm3_context * ctx, unsigned char * output);
+void gm_sm3_done(gm_sm3_context * ctx, unsigned char output[32]);
 
 /**
  * 直接计算消息的摘要
@@ -45,7 +45,7 @@ void gm_sm3_done(gm_sm3_context * ctx, unsigned char * output);
  * @param iLen 消息长度（字节）
  * @param output 输出摘要结果
  */
-void gm_sm3(const unsigned char * input, unsigned int iLen, unsigned char * output);
+void gm_sm3(const unsigned char * input, unsigned int iLen, unsigned char output[32]);
 
 # ifdef  __cplusplus
 }

@@ -873,7 +873,7 @@ void gm_point_decode(gm_point_t *p, const uint8_t * in) {
  * @param sig 存储签名结果缓冲区
  * @return 1如果签名成功，否则签名失败
  */
-int gm_do_sign(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig) {
+int gm_do_sign(const gm_bn_t key, const gm_bn_t dgst, unsigned char sig[64]) {
     return gm_do_sign_for_test(key, dgst, sig, NULL);
 }
 
@@ -885,7 +885,7 @@ int gm_do_sign(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig) {
  * @param testK 随机数
  * @return 1如果签名成功，否则签名失败
  */
-int gm_do_sign_for_test(const gm_bn_t key, const gm_bn_t dgst, unsigned char *sig, const gm_bn_t testK) {
+int gm_do_sign_for_test(const gm_bn_t key, const gm_bn_t dgst, unsigned char sig[64], const gm_bn_t testK) {
     gm_point_t _P, *P = &_P;
     gm_bn_t d;
     gm_bn_t e;
@@ -966,7 +966,7 @@ retry:
  * @param sig 签名结果，用于验签
  * @return 1如果验签成功，否则验签失败
  */
-int gm_do_verify(const gm_point_t *key, const gm_bn_t dgst, const unsigned char *sig) {
+int gm_do_verify(const gm_point_t *key, const gm_bn_t dgst, const unsigned char sig[64]) {
     gm_point_t _P, *P = &_P;
     gm_point_t _Q, *Q = &_Q;
     gm_bn_t r;
