@@ -134,7 +134,7 @@ static void gm_i_bn_add_x(gm_bn_t r, const gm_bn_t a, const gm_bn_t b, int count
 static void gm_i_bn_sub(gm_bn_t r, const gm_bn_t a, const gm_bn_t b) {
     int i;
     r[0] = 0x100000000ULL + a[0] - b[0];
-    for (i = 1; i < 7; i++) {
+    for (i = 1; i < GM_BN_ARR_SIZE_SUB_ONE; i++) {
         r[i] = 0x0FFFFFFFFULL + a[i] - b[i] + (r[i - 1] >> 32);
         r[i - 1] &= 0x0FFFFFFFFULL;
     }

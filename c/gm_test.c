@@ -524,6 +524,79 @@ void test_sm2_gen_keypair() {
     printf("public key: 04%s\n", buf);
 }
 
+void test_sm2_key_exch() {
+    gm_bn_t da, tmpda;
+    gm_bn_t db, tmpdb;
+    gm_point_t pa, tmppa;
+    gm_point_t pb, tmppb;
+
+    unsigned char userId_a[3] = {0x61, 0x62, 0x63};
+    unsigned char userId_b[5] = {0x61, 0x62, 0x63, 0x64, 0x65};
+
+    unsigned char rzw_a[160] = {0};
+    unsigned char rzw_b[160] = {0};
+
+    unsigned char k_s1_sa[256] = {0};
+    unsigned char k_sb_s2[256] = {0};
+
+    gm_bn_from_hex(da, "1ED44070B763431D23D35A227A34D91558DC0B1EDD87E91238D4A54D98FAB6A0");
+    gm_bn_from_hex(tmpda, "B45B1F0577C6D37C86F252B394B20E55FEEEF2DEE49743A68EC7871CECD89872");
+
+    gm_bn_from_hex(db, "D18FE8EFD4E7C5B2FFDC356E16E397D2443DB6EA4C453EB5DC2852F8E301E846");
+    gm_bn_from_hex(tmpdb, "37ED4CE7C7951B76BE93CFD116A9F8AE439664107A59278E0F7095B964A8C7BA");
+
+    gm_point_mul(&pa, da, GM_MONT_G);
+    gm_point_mul(&tmppa, tmpda, GM_MONT_G);
+
+    gm_point_mul(&pb, db, GM_MONT_G);
+    gm_point_mul(&tmppb, tmpdb, GM_MONT_G);
+
+    gm_sm2_exch_context exa, exb;
+
+    unsigned char expbuf[116] = {0};
+    gm_hex2bin("3A18CB6BE2DC15C49998BE75DA28C4DEB3ADF33E08E886FCD7B2869CD006A6C4D5852D9E194A091EC9AC01B2D6B5153A09CA39BC3FB4984A09E4CE5B0DEC0E105CA12D712F6C8CBE59BFE54CAD0641B922D3EB0AD10C1D2347BA10985624ACC5A4C21400A3441D8EA5DE97B897B2635E6AEDE9", 
+        230, expbuf);
+
+    int i;
+
+    for(i = 0; i < 100; i++) {
+        // A为发起方，发起方初始化
+        gm_sm2_exch_init_for_test(&exa, da, &pa, tmpda, &tmppa, 1, userId_a, 3, rzw_a);
+
+        // B为响应方
+        gm_sm2_exch_init_for_test(&exb, db, &pb, tmpdb, &tmppb, 0, userId_b, 5, rzw_b);
+
+        // B拿到A的r z w进行密钥计算
+        gm_sm2_exch_calculate(&exb, rzw_a, 16 + i, k_sb_s2);
+
+        // A拿到B的r z w进行密钥计算
+        gm_sm2_exch_calculate(&exa, rzw_b, 16 + i, k_s1_sa);
+        // A校验s1 == sb
+        if(memcmp(k_s1_sa + 16, k_sb_s2 + 16, 32) != 0) {
+            printf("test result s1 == sb: fail\n");
+            // return;
+        }
+
+        // B校验s2 == sa
+        if(memcmp(k_s1_sa + 16 + 32, k_sb_s2 + 16 + 32, 32) != 0) {
+            printf("test result s2 == sa: fail\n");
+            return;
+        }
+
+        // 最后来看看两方计算的密钥值是否一致
+        if(memcmp(k_s1_sa, k_sb_s2, 16 + i) != 0) {
+            printf("test result ka == kb: fail\n");
+            return;
+        }
+
+        if(memcmp(k_s1_sa, expbuf, 16 + i) != 0) {
+            printf("test result check k: fail\n");
+            return;
+        }
+    }
+    printf("test result: ok\n");
+}
+
 void test(const char ** argv) {
     /** base ops **/
     TEST_BN_ALG("gmp_to_mont",
@@ -745,6 +818,10 @@ void test(const char ** argv) {
 
     if(strcmp(argv[1], "sm2_gen_keypair") == 0) {
         test_sm2_gen_keypair();
+    }
+
+    if(strcmp(argv[1], "sm2_key_exch") == 0) {
+        test_sm2_key_exch();
     }
 }
 

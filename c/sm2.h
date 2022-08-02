@@ -13,18 +13,49 @@ extern "C" {
 # endif
 
 typedef struct {
-   gm_bn_t private_key;            // SM2私钥
-   gm_point_t public_key;          // SM2公钥
+    gm_bn_t private_key;            // SM2私钥
+    gm_point_t public_key;          // SM2公钥
 
-   unsigned char x2y2[64];         // SM2 crypt x2y2
+    unsigned char x2y2[64];         // SM2 crypt x2y2
 
-   gm_sm3_context sm3_ctx;         // SM3上下文，用于计算加解密C3
+    gm_sm3_context sm3_ctx;         // SM3上下文，用于计算加解密C3
 
-   unsigned char buf[32];          // 缓冲区，32字节为一个数据块
-   unsigned int cur_buf_len;       // 当前缓冲区长度
-   unsigned int ct;                // SM2 crypt ct，计算KDF
-   unsigned int state;             // 标识是否为加密或是否为签名
+    unsigned char buf[32];          // 缓冲区，32字节为一个数据块
+    unsigned int cur_buf_len;       // 当前缓冲区长度
+    unsigned int ct;                // SM2 crypt ct，计算KDF
+    unsigned int state;             // 标识是否为加密或是否为签名
 } gm_sm2_context;
+
+typedef struct {
+    gm_bn_t t;                      // tA or tB
+    unsigned char xy[64];           // 临时公钥(x1, y1) or (x2, y2)
+    unsigned char z[32];            // ZA or ZB
+    unsigned char isInitiator;      // 1为发起方，否则为响应方
+} gm_sm2_exch_context;
+
+/**
+ * 密钥协商初始化
+ * @param ctx 上下文
+ * @param private_key 用户私钥rA or rB
+ * @param public_key 用户公司RA or RB
+ * @param isInitiator 1为发起方，否则为响应方
+ * @param output 输出 RA or RB || ZA or ZB || WA or WB
+ */
+void gm_sm2_exch_init(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t * public_key, 
+  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char * output);
+
+void gm_sm2_exch_init_for_test(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t * public_key, 
+  gm_bn_t tmp_private_key, gm_point_t * tmp_public_key, 
+  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char * output);
+
+/**
+ * 计算密钥K，S1/SB、S2/SA
+ * @param ctx 上下文
+ * @param peerData 对方初始化信息 R || Z || w
+ * @param kLen 协商的密钥长度（单位字节）
+ * @param output 输出密钥 k || S1/SB || S2/SA
+ */
+void gm_sm2_exch_calculate(gm_sm2_exch_context * ctx, const unsigned char * peerData, int kLen, unsigned char * output);
 
 /**
  * 加解密初始化

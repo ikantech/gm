@@ -12,6 +12,9 @@
 extern "C" {
 # endif
 
+#define GM_BN_ARR_SIZE 8
+#define GM_BN_ARR_SIZE_SUB_ONE 7
+
 // 大数的定义
 typedef uint64_t gm_bn_t[8];
 

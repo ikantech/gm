@@ -42,6 +42,16 @@ static const gm_bn_t GM_BN_N_SUB_ONE = {
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE
 };
 
+static const gm_bn_t GM_BN_2W = {
+    0x00000000, 0x00000000, 0x00000000, 0x80000000,
+    0x00000000, 0x00000000, 0x00000000, 0x00000000
+};
+
+static const gm_bn_t GM_BN_2W_SUB_ONE = {
+    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x7FFFFFFF,
+    0x00000000, 0x00000000, 0x00000000, 0x00000000
+};
+
 // 字转化为字节
 #ifndef GM_PUT_UINT32_BE
 #define GM_PUT_UINT32_BE(n, b ,i)                       \
@@ -347,4 +357,158 @@ void gm_sm2_gen_keypair(gm_bn_t private_key, gm_point_t * public_key) {
 
         // check public key
     } while(gm_sm2_check_public_key(public_key) != 1);
+}
+
+// 2^w + ( x & ( 2^w − 1 ) )
+static void gm_sm2_exch_reduce(gm_bn_t x) {
+    int i;
+    int num = GM_BN_ARR_SIZE / 2;
+    for(i = 0; i < GM_BN_ARR_SIZE; i++) {
+        if(i < num) {
+            x[i] &= GM_BN_2W_SUB_ONE[i];
+            x[i] += GM_BN_2W[i];
+        }else {
+            x[i] = 0;
+        }
+    }
+}
+
+/**
+ * 密钥协商初始化
+ * @param ctx 上下文
+ * @param private_key 用户私钥dA or dB
+ * @param public_key 用户公司PA or PB
+ * @param isInitiator 1为发起方，否则为响应方
+ * @param output 输出 RA or RB || ZA or ZB || WA or WB
+ */
+void gm_sm2_exch_init(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t * public_key, 
+  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char * output) {
+    gm_bn_t r;
+    gm_point_t pr;
+
+    // 生成临时密钥对
+    gm_sm2_gen_keypair(r, &pr);
+
+    gm_sm2_exch_init_for_test(ctx, private_key, public_key, r, &pr, isInitiator, id_bytes, idLen, output);
+}
+
+void gm_sm2_exch_init_for_test(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t * public_key, 
+  gm_bn_t tmp_private_key, gm_point_t * tmp_public_key, 
+  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char * output) {
+    gm_bn_t r, x, y;
+    gm_point_t pr, w;
+
+    gm_bn_copy(r, tmp_private_key);
+    gm_point_copy(&pr, tmp_public_key);
+
+    gm_point_get_xy(&pr, x, y);
+
+    // 2^w + ( x & ( 2^w − 1 ) )
+    gm_sm2_exch_reduce(x);
+
+    // w = P + x · R
+    gm_point_mul(&w, x, &pr);
+    gm_point_add(&w, &w, public_key);
+
+    // t = (d + x · r) mod n
+    gm_bn_to_mont(x, x, GM_BN_N);
+    gm_bn_to_mont(r, r, GM_BN_N);
+    // x * r
+    gm_bn_mont_mul(r, r, x, GM_BN_N);
+    // d + x * r
+    gm_bn_from_mont(r, r, GM_BN_N);
+    gm_bn_add(ctx->t, r, private_key, GM_BN_N);
+
+    // compute z digest
+    gm_sm2_compute_z_digest(id_bytes, idLen, public_key, ctx->z);
+
+    ctx->isInitiator = isInitiator;
+    gm_point_to_bytes(&pr, ctx->xy);
+
+    // output R || Z || W
+    memcpy(output, ctx->xy, 64);
+    memcpy(output + 64, ctx->z, 32);
+    gm_point_to_bytes(&w, output + 96);
+}
+
+/**
+ * 计算密钥K，S1/SB、S2/SA
+ * @param ctx 上下文
+ * @param peerData 对方初始化信息 R || Z || w
+ * @param kLen 协商的密钥长度（单位字节）
+ * @param output 输出密钥 k || S1/SB || S2/SA
+ */
+void gm_sm2_exch_calculate(gm_sm2_exch_context * ctx, const unsigned char * peerData, int kLen, unsigned char * output) {
+    unsigned char buf[100] = {0};
+    int i, ki, kn, ct;
+    
+    gm_point_t w;
+    gm_sm3_context sm3_ctx;
+
+    // U = t * W
+    gm_point_from_bytes(&w, peerData + 96);
+    gm_point_mul(&w, ctx->t, &w);
+    gm_point_to_bytes(&w, buf);
+
+    // KDF(x_u || y_u || Z_A || Z_B)
+    kn = (kLen + 31) / 32;
+    ki = 0;
+    for(i = 0, ct = 1; i < kn; i++, ct++) {
+        
+        gm_sm3_init(&sm3_ctx);
+        gm_sm3_update(&sm3_ctx, buf, 64);
+
+        if(ctx->isInitiator) {
+            gm_sm3_update(&sm3_ctx, ctx->z, 32);
+            gm_sm3_update(&sm3_ctx, peerData + 64, 32);
+        }else {
+            gm_sm3_update(&sm3_ctx, peerData + 64, 32);
+            gm_sm3_update(&sm3_ctx, ctx->z, 32);
+        }
+
+        GM_PUT_UINT32_BE(ct, buf + 64, 0);
+        gm_sm3_update(&sm3_ctx, buf + 64, 4);
+        gm_sm3_done(&sm3_ctx, buf + 68);
+
+        // output kA or kB
+        if(i == (kn - 1)) {
+            memcpy(output + ki, buf + 68, (kLen - ki));
+        }else {
+            memcpy(output + ki, buf + 68, 32);
+            ki += 32;
+        }
+    }
+
+    // Hash(0x02 || y_u || Hash(x_u || Z_A || Z_B || x_1 || y_1 || x_2 || y_2))
+    gm_sm3_init(&sm3_ctx);
+    gm_sm3_update(&sm3_ctx, buf, 32);
+    if(ctx->isInitiator) {
+        gm_sm3_update(&sm3_ctx, ctx->z, 32);
+        gm_sm3_update(&sm3_ctx, peerData + 64, 32);
+        gm_sm3_update(&sm3_ctx, ctx->xy, 64);
+        gm_sm3_update(&sm3_ctx, peerData, 64);
+    }else {
+        gm_sm3_update(&sm3_ctx, peerData + 64, 32);
+        gm_sm3_update(&sm3_ctx, ctx->z, 32);
+        gm_sm3_update(&sm3_ctx, peerData, 64);
+        gm_sm3_update(&sm3_ctx, ctx->xy, 64);
+    }
+    gm_sm3_done(&sm3_ctx, buf + 68);
+
+    gm_sm3_init(&sm3_ctx);
+    buf[31] = 0x02;
+    gm_sm3_update(&sm3_ctx, buf + 31, 33);
+    gm_sm3_update(&sm3_ctx, buf + 68, 32);
+
+    // ouput s1 or sB
+    gm_sm3_done(&sm3_ctx, output + kLen);
+
+    // Hash(0x03 || y_u || Hash(x_u || Z_A || Z_B || x_1 || y_1 || x_2 || y_2))
+    gm_sm3_init(&sm3_ctx);
+    buf[31] = 0x03;
+    gm_sm3_update(&sm3_ctx, buf + 31, 33);
+    gm_sm3_update(&sm3_ctx, buf + 68, 32);
+
+    // ouput s2 or sA
+    gm_sm3_done(&sm3_ctx, output + kLen + 32);
 }
