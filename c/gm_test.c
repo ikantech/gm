@@ -307,7 +307,7 @@ void test_gm_point_codec() {
         "04B6B8F2F865585E397A35AC01FC625002ED4EF34AAB3DC4BF014AB88D067B348A6FF093E492A5D474D6231DD16B252EE0B82BDE8DF05EFC4F67892C16FEA2E521",
         "0446BC59D115B46DCB54F96470E42B2879897268BE2FA525959F29558DD0D2D296955BA4C5C1EB0A8F7AF85B0BE82BF8FABC81142FE45511497D6C725D76EBD91E",
         "040F5049F8335EE7401599E6A97D94481252972879DE02CB3461B648C77DC918C0EED9C57C65CDB005B5D3A43BDDB785770CA859F8D8AC61C2D753C8220D9C4695",
-        "0444FBB7B346D70CD8A98954CBE5FC20EE9144731B025CA2E66DCE57501B3B96C785C0376FE94F9AE45D037FEE868449C54345603BCECD6F003DC7D892C5077B2F"
+        "04EA07958F8AAE0AB03613AE7689E9B17F9608271FF01A85EADA62736E5E56841B718464FF99E3C0E2CC98A84B02B58B5B11097397D128A91A5BC048A3C224908D"
     };
 
     const char * pubksC[20] = {
@@ -330,7 +330,7 @@ void test_gm_point_codec() {
         "03B6B8F2F865585E397A35AC01FC625002ED4EF34AAB3DC4BF014AB88D067B348A",
         "0246BC59D115B46DCB54F96470E42B2879897268BE2FA525959F29558DD0D2D296",
         "030F5049F8335EE7401599E6A97D94481252972879DE02CB3461B648C77DC918C0",
-        "0344FBB7B346D70CD8A98954CBE5FC20EE9144731B025CA2E66DCE57501B3B96C7"
+        "03EA07958F8AAE0AB03613AE7689E9B17F9608271FF01A85EADA62736E5E56841B"
     };
     int i, j;
     unsigned char buf[65] = {0};
@@ -351,6 +351,10 @@ void test_gm_point_codec() {
         }
 
         gm_hex2bin(pubksC[i], 66, buf);
+
+        // 这里要还原p，要不测不出来问题
+        gm_point_set_infinity(&p);
+
         gm_point_decode(&p, buf);
 
         gm_point_encode(&p, buf, 0);
@@ -387,7 +391,15 @@ void test_sm4_ecb_cbc(int isCBC, int pkcs7, const char * input_hex, int iHexLen,
         // 这里可以加一个reset函数来代替，避免每次都要计算一次rk
         gm_sm4_init(&ctx, key, 1, pkcs7, isCBC ? key : NULL);
 
-        iLen = gm_sm4_update(&ctx, buf, iLen, buf);
+        // 测试内容长度是16的倍数的case
+        if(iLen > 32) {
+            int tmpLen = iLen - 32;
+            iLen = gm_sm4_update(&ctx, buf, 32, buf);
+            iLen += gm_sm4_update(&ctx, buf + 32, tmpLen, buf + iLen);
+        }else {
+            iLen = gm_sm4_update(&ctx, buf, iLen, buf);
+        }
+        
         int r = gm_sm4_done(&ctx, buf + iLen);
         if(r == -1) {
             printf("test result: fail1\n");
@@ -406,7 +418,15 @@ void test_sm4_ecb_cbc(int isCBC, int pkcs7, const char * input_hex, int iHexLen,
         // 这里可以加一个reset函数来代替，避免每次都要计算一次rk
         gm_sm4_init(&ctx, key, 0, pkcs7, isCBC ? key : NULL);
 
-        iLen = gm_sm4_update(&ctx, buf, iLen, buf);
+        // 测试内容长度是16的倍数的case
+        if(iLen > 32) {
+            int tmpLen = iLen - 32;
+            iLen = gm_sm4_update(&ctx, buf, 32, buf);
+            iLen += gm_sm4_update(&ctx, buf + 32, tmpLen, buf + iLen);
+        }else {
+            iLen = gm_sm4_update(&ctx, buf, iLen, buf);
+        }
+
         int r = gm_sm4_done(&ctx, buf + iLen);
         if(r == -1) {
             printf("test result: fail3\n");

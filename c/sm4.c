@@ -3,7 +3,8 @@
 #include "sm4.h"
 
 // 循环左移
-#define GM_CROL(x, b) ((((x) & 0xFFFFFFFF) << (b)) | ((x) >> (0x20 - (b))))
+#define  GM_SHL(x,n) (((x) & 0xFFFFFFFF) << (n % 32))
+#define GM_ROTL(x,n) (GM_SHL((x),n) | ((x) >> (32 - (n % 32))))
 
 // 字节转化为字
 #ifndef GM_GET_UINT32_BE
@@ -94,7 +95,7 @@ static void sm4_key_schedule(const unsigned char * key, unsigned int * rk)
 		GM_SM4_NON_LINEAR_OP(tmp1, tmp2);
 
 		// linear operation
-		rk[i] = K[i + 4] = K[i] ^ (tmp2 ^ GM_CROL(tmp2, 13) ^ GM_CROL(tmp2, 23));
+		rk[i] = K[i + 4] = K[i] ^ (tmp2 ^ GM_ROTL(tmp2, 13) ^ GM_ROTL(tmp2, 23));
 	}
 }
 
@@ -117,7 +118,7 @@ static void one_round(unsigned int rk[32], int forEncryption, const unsigned cha
 		GM_SM4_NON_LINEAR_OP(tmp1, tmp2);
 
 		// linear operation
-		unsigned int tt = (tmp2 ^ GM_CROL(tmp2, 2) ^ GM_CROL(tmp2, 10) ^ GM_CROL(tmp2, 18) ^ GM_CROL(tmp2, 24));
+		unsigned int tt = (tmp2 ^ GM_ROTL(tmp2, 2) ^ GM_ROTL(tmp2, 10) ^ GM_ROTL(tmp2, 18) ^ GM_ROTL(tmp2, 24));
 
 		X[i + 4] = X[i] ^ tt;
 	}
@@ -225,8 +226,6 @@ int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned in
 	int rLen = 0;
 
 	while(iLen--) {
-		ctx->buf[ctx->cur_buf_len++] = *input++;
-
         /* 是否满16个字节，这里要留一轮，要不调用gm_sm4_done时就不好处理填充了 */
         if (ctx->cur_buf_len == 16 && iLen > 0) {
             // 满了，则立即调用轮函数进行处理
@@ -235,6 +234,8 @@ int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned in
             ctx->cur_buf_len = 0;
             rLen += 16;
         }
+
+		ctx->buf[ctx->cur_buf_len++] = *input++;
 	}
 	return rLen;
 }
