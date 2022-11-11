@@ -574,7 +574,7 @@ void test_sm2_key_exch() {
         // A校验s1 == sb
         if(memcmp(k_s1_sa + 16, k_sb_s2 + 16, 32) != 0) {
             printf("test result s1 == sb: fail\n");
-            // return;
+            return;
         }
 
         // B校验s2 == sa
