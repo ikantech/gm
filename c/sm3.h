@@ -14,7 +14,7 @@ extern "C" {
 typedef struct {
     unsigned int state[8]; // 寄存器中间状态
     unsigned char buf[64]; // 待压缩消息
-    unsigned int cur_buf_len; // 当前待压缩消息长度（字节）
+    uint64_t cur_buf_len; // 当前待压缩消息长度（字节）
     uint64_t compressed_len; // 已压缩消息长度（比特）
 } gm_sm3_context;
 

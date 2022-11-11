@@ -27,7 +27,8 @@
 #define GM_SM3_GG_1(x,y,z) ( ( (x) & (y) ) | ( (~(x)) & (z) ) )
 
 // 循环左移
-#define GM_SM3_ROTL(x, b) ((((x) & 0xFFFFFFFF) << (b)) | ((x) >> (0x20 - (b))))
+#define  GM_SM3_SHL(x,n) (((x) & 0xFFFFFFFF) << (n % 32))
+#define GM_SM3_ROTL(x,n) (GM_SM3_SHL((x),n) | ((x) >> (32 - (n % 32))))
 
 // P0 P1函数
 #define GM_SM3_P_0(x) ((x) ^  GM_SM3_ROTL((x),9) ^ GM_SM3_ROTL((x),17))

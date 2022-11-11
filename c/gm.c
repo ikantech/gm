@@ -826,7 +826,7 @@ void gm_point_decode(gm_point_t *p, const uint8_t * in) {
     if(in[0] == 0x04) {
         // 未压缩点，直接转化
         gm_point_from_bytes(p, in + 1);
-    }else if(in[0] == 0x02 || in[1] == 0x03) {
+    }else if(in[0] == 0x02 || in[0] == 0x03) {
         int yTile = in[0] - 0x02;
         gm_bn_t x, r;
 
