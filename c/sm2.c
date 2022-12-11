@@ -471,13 +471,13 @@ static void gm_sm2_exch_reduce(gm_bn_t x) {
 /**
  * 密钥协商初始化
  * @param ctx 上下文
- * @param private_key 用户私钥dA or dB
- * @param public_key 用户公司PA or PB
+ * @param private_key 用户私钥rA or rB
+ * @param public_key 用户公司RA or RB
  * @param isInitiator 1为发起方，否则为响应方
- * @param output 输出 RA or RB || ZA or ZB || WA or WB
+ * @param output 输出 RA or RB
  */
-void gm_sm2_exch_init(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t * public_key, 
-  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char output[160]) {
+void gm_sm2_exch_init(gm_sm2_exch_context * ctx, gm_bn_t private_key, const gm_point_t * public_key, 
+  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char output[64]) {
     gm_bn_t r;
     gm_point_t pr;
 
@@ -487,9 +487,9 @@ void gm_sm2_exch_init(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t
     gm_sm2_exch_init_for_test(ctx, private_key, public_key, r, &pr, isInitiator, id_bytes, idLen, output);
 }
 
-void gm_sm2_exch_init_for_test(gm_sm2_exch_context * ctx, gm_bn_t private_key, gm_point_t * public_key, 
-  gm_bn_t tmp_private_key, gm_point_t * tmp_public_key, 
-  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char output[160]) {
+void gm_sm2_exch_init_for_test(gm_sm2_exch_context * ctx, gm_bn_t private_key, const gm_point_t * public_key, 
+  gm_bn_t tmp_private_key, const gm_point_t * tmp_public_key, 
+  unsigned char isInitiator, const unsigned char * id_bytes, unsigned int idLen, unsigned char output[64]) {
     gm_bn_t r, x, y;
     gm_point_t pr;
 
@@ -516,30 +516,36 @@ void gm_sm2_exch_init_for_test(gm_sm2_exch_context * ctx, gm_bn_t private_key, g
     ctx->isInitiator = isInitiator;
     gm_point_to_bytes(&pr, ctx->xy);
 
-    // output R || Z || P
+    // output R
     memcpy(output, ctx->xy, 64);
-    memcpy(output + 64, ctx->z, 32);
-    gm_point_to_bytes(public_key, output + 96);
 }
 
 /**
  * 计算密钥K，S1/SB、S2/SA
  * @param ctx 上下文
- * @param peerData 对方初始化信息 R || Z || w
+ * @param peer_p 对方公钥P
+ * @param peer_r 对方初始化信息 R，即随机公钥
+ * @param id_bytes 对方user id
+ * @param idLen 对方user id 长度
  * @param kLen 协商的密钥长度（单位字节）
- * @param output 输出密钥 k || S1/SB || S2/SA
+ * @param output 输出密钥 k || S1/SB || S2/SA，长度为kLen + 64
  */
-void gm_sm2_exch_calculate(gm_sm2_exch_context * ctx, const unsigned char * peerData, int kLen, unsigned char * output) {
+void gm_sm2_exch_calculate(gm_sm2_exch_context * ctx, const unsigned char * peer_p, const unsigned char * peer_r, 
+  const unsigned char * id_bytes, unsigned int idLen, int kLen, unsigned char * output) {
     unsigned char buf[100] = {0};
+    unsigned char peerZ[32] = {0};
     int i, ki, kn, ct;
     
     gm_bn_t peerTmpX;
     gm_point_t peerPubK, peerTmpPubK;
     gm_sm3_context sm3_ctx;
 
-    gm_bn_from_bytes(peerTmpX, peerData);
-    gm_point_from_bytes(&peerPubK, peerData + 96);
-    gm_point_from_bytes(&peerTmpPubK, peerData);
+    gm_bn_from_bytes(peerTmpX, peer_r);
+    gm_point_from_bytes(&peerPubK, peer_p);
+    gm_point_from_bytes(&peerTmpPubK, peer_r);
+
+    // compute peer z digest
+    gm_sm2_compute_z_digest(id_bytes, idLen, &peerPubK, peerZ);
 
     // 2^w + ( peerTmpX & ( 2^w − 1 ) )
     gm_sm2_exch_reduce(peerTmpX);
@@ -562,9 +568,9 @@ void gm_sm2_exch_calculate(gm_sm2_exch_context * ctx, const unsigned char * peer
 
         if(ctx->isInitiator) {
             gm_sm3_update(&sm3_ctx, ctx->z, 32);
-            gm_sm3_update(&sm3_ctx, peerData + 64, 32);
+            gm_sm3_update(&sm3_ctx, peerZ, 32);
         }else {
-            gm_sm3_update(&sm3_ctx, peerData + 64, 32);
+            gm_sm3_update(&sm3_ctx, peerZ, 32);
             gm_sm3_update(&sm3_ctx, ctx->z, 32);
         }
 
@@ -586,13 +592,13 @@ void gm_sm2_exch_calculate(gm_sm2_exch_context * ctx, const unsigned char * peer
     gm_sm3_update(&sm3_ctx, buf, 32);
     if(ctx->isInitiator) {
         gm_sm3_update(&sm3_ctx, ctx->z, 32);
-        gm_sm3_update(&sm3_ctx, peerData + 64, 32);
+        gm_sm3_update(&sm3_ctx, peerZ, 32);
         gm_sm3_update(&sm3_ctx, ctx->xy, 64);
-        gm_sm3_update(&sm3_ctx, peerData, 64);
+        gm_sm3_update(&sm3_ctx, peer_r, 64);
     }else {
-        gm_sm3_update(&sm3_ctx, peerData + 64, 32);
+        gm_sm3_update(&sm3_ctx, peerZ, 32);
         gm_sm3_update(&sm3_ctx, ctx->z, 32);
-        gm_sm3_update(&sm3_ctx, peerData, 64);
+        gm_sm3_update(&sm3_ctx, peer_r, 64);
         gm_sm3_update(&sm3_ctx, ctx->xy, 64);
     }
     gm_sm3_done(&sm3_ctx, buf + 68);
