@@ -471,9 +471,11 @@ static void gm_sm2_exch_reduce(gm_bn_t x) {
 /**
  * 密钥协商初始化
  * @param ctx 上下文
- * @param private_key 用户私钥rA or rB
- * @param public_key 用户公司RA or RB
+ * @param private_key 用户私钥dA or dB
+ * @param public_key 用户公钥PA or PB
  * @param isInitiator 1为发起方，否则为响应方
+ * @param id_bytes 用户Id
+ * @param idLen 用户Id长度
  * @param output 输出 RA or RB
  */
 void gm_sm2_exch_init(gm_sm2_exch_context * ctx, gm_bn_t private_key, const gm_point_t * public_key, 
