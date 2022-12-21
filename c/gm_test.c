@@ -553,8 +553,8 @@ void test_sm2_key_exch() {
     unsigned char userId_a[3] = {0x61, 0x62, 0x63};
     unsigned char userId_b[5] = {0x61, 0x62, 0x63, 0x64, 0x65};
 
-    unsigned char rzw_a[160] = {0};
-    unsigned char rzw_b[160] = {0};
+    unsigned char rp_a[128] = {0};
+    unsigned char rp_b[128] = {0};
 
     unsigned char k_s1_sa[256] = {0};
     unsigned char k_sb_s2[256] = {0};
@@ -571,6 +571,9 @@ void test_sm2_key_exch() {
     gm_point_mul(&pb, db, GM_MONT_G);
     gm_point_mul(&tmppb, tmpdb, GM_MONT_G);
 
+    gm_point_to_bytes(&pa, rp_a + 64);
+    gm_point_to_bytes(&pb, rp_b + 64);
+
     gm_sm2_exch_context exa, exb;
 
     unsigned char expbuf[116] = {0};
@@ -581,20 +584,20 @@ void test_sm2_key_exch() {
 
     for(i = 0; i < 100; i++) {
         // A为发起方，发起方初始化
-        gm_sm2_exch_init_for_test(&exa, da, &pa, tmpda, &tmppa, 1, userId_a, 3, rzw_a);
+        gm_sm2_exch_init_for_test(&exa, da, &pa, tmpda, &tmppa, 1, userId_a, 3, rp_a);
 
         // B为响应方
-        gm_sm2_exch_init_for_test(&exb, db, &pb, tmpdb, &tmppb, 0, userId_b, 5, rzw_b);
+        gm_sm2_exch_init_for_test(&exb, db, &pb, tmpdb, &tmppb, 0, userId_b, 5, rp_b);
 
         // B拿到A的r z w进行密钥计算
-        gm_sm2_exch_calculate(&exb, rzw_a, 16 + i, k_sb_s2);
+        gm_sm2_exch_calculate(&exb, rp_a + 64, rp_a, userId_a, 3, 16 + i, k_sb_s2);
 
         // A拿到B的r z w进行密钥计算
-        gm_sm2_exch_calculate(&exa, rzw_b, 16 + i, k_s1_sa);
+        gm_sm2_exch_calculate(&exa, rp_b + 64, rp_b, userId_b, 5, 16 + i, k_s1_sa);
         // A校验s1 == sb
         if(memcmp(k_s1_sa + 16, k_sb_s2 + 16, 32) != 0) {
             printf("test result s1 == sb: fail\n");
-            // return;
+            return;
         }
 
         // B校验s2 == sa
