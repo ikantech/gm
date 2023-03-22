@@ -3,3 +3,6 @@
 
 # website
 [http://www.yiim.net](http://www.yiim.net)
+
+# QQ群
+859626351
