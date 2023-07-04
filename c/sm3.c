@@ -19,16 +19,16 @@
 #define GM_SM3_T_1 0x7A879D8A
 
 // FFj函数
-#define GM_SM3_FF_0(x,y,z) ( (x) ^ (y) ^ (z) )
-#define GM_SM3_FF_1(x,y,z) ( ( (x) & (y) ) | ( (x) & (z) ) | ( (y) & (z) ) )
+#define GM_SM3_FF_0(x, y, z) ( (x) ^ (y) ^ (z) )
+#define GM_SM3_FF_1(x, y, z) ( ( (x) & (y) ) | ( (x) & (z) ) | ( (y) & (z) ) )
 
 // GGj函数
-#define GM_SM3_GG_0(x,y,z) ( (x) ^ (y) ^ (z) )
-#define GM_SM3_GG_1(x,y,z) ( ( (x) & (y) ) | ( (~(x)) & (z) ) )
+#define GM_SM3_GG_0(x, y, z) ( (x) ^ (y) ^ (z) )
+#define GM_SM3_GG_1(x, y, z) ( ( (x) & (y) ) | ( (~(x)) & (z) ) )
 
 // 循环左移
-#define  GM_SM3_SHL(x,n) (((x) & 0xFFFFFFFF) << (n % 32))
-#define GM_SM3_ROTL(x,n) (GM_SM3_SHL((x),n) | ((x) >> (32 - (n % 32))))
+#define  GM_SM3_SHL(x, n) (((x) & 0xFFFFFFFF) << (n % 32))
+#define GM_SM3_ROTL(x, n) (GM_SM3_SHL((x), n) | ((x) >> (32 - (n % 32))))
 
 // P0 P1函数
 #define GM_SM3_P_0(x) ((x) ^  GM_SM3_ROTL((x),9) ^ GM_SM3_ROTL((x),17))
@@ -36,7 +36,7 @@
 
 // 字节转化为字
 #ifndef GM_GET_UINT32_BE
-#define GM_GET_UINT32_BE(n,b,i)                         \
+#define GM_GET_UINT32_BE(n, b, i)                       \
 {                                                       \
     (n) = ( (uint32_t) (b)[(i)    ] << 24 )             \
         | ( (uint32_t) (b)[(i) + 1] << 16 )             \
@@ -57,8 +57,7 @@
 #endif
 
 // 消息扩展，消息Bi -> W
-static void gm_sm3_BiToW(const unsigned char * Bi, unsigned int * W)
-{
+static void gm_sm3_BiToW(const unsigned char * Bi, unsigned int * W) {
     int i;
     unsigned int tmp;
 
@@ -79,20 +78,17 @@ static void gm_sm3_BiToW(const unsigned char * Bi, unsigned int * W)
     GM_GET_UINT32_BE( W[14], Bi, 56 );
     GM_GET_UINT32_BE( W[15], Bi, 60 );
 
-    for (i = 16; i <= 67; i++)
-    {
+    for (i = 16; i <= 67; i++) {
         tmp = W[i - 16]    ^ W[i - 9] ^ GM_SM3_ROTL(W[i - 3], 15);
         W[i] = GM_SM3_P_1(tmp) ^ (GM_SM3_ROTL(W[i - 13], 7)) ^ W[i - 6];
     }
 }
 
 // w 扩展算法
-static void gm_sm3_WToW1(const unsigned int * W, unsigned int * W1)
-{
+static void gm_sm3_WToW1(const unsigned int * W, unsigned int * W1) {
     int i;
 
-    for (i = 0; i <= 63; i++)
-    {
+    for (i = 0; i <= 63; i++) {
         W1[i] = W[i] ^ W[i + 4];
     }
 }
@@ -178,8 +174,7 @@ static void gm_sm3_CF(const unsigned int * W, const unsigned int * W1, gm_sm3_co
 }
 
 // 压缩算法
-static void gm_sm3_compress(gm_sm3_context * ctx)
-{
+static void gm_sm3_compress(gm_sm3_context * ctx) {
     unsigned int W[68];
     unsigned int W1[64];
 
@@ -217,14 +212,12 @@ void gm_sm3_init(gm_sm3_context * ctx) {
  * @param iLen 消息长度（字节）
  */
 void gm_sm3_update(gm_sm3_context * ctx, const unsigned char * input, unsigned int iLen) {
-    while (iLen--)
-    {
+    while (iLen--) {
         ctx->buf[ctx->cur_buf_len] = *input++;
         ctx->cur_buf_len++;
 
         /* 是否满64个字节 */
-        if (ctx->cur_buf_len == 64)
-        {
+        if (ctx->cur_buf_len == 64) {
             // 满了，则立即调用压缩函数进行压缩
             gm_sm3_compress(ctx);
             ctx->compressed_len += 512;
@@ -259,7 +252,7 @@ void gm_sm3_done(gm_sm3_context * ctx, unsigned char output[32]) {
     GM_PUT_UINT32_BE(low,  msglen, 4);
 
     // 计算填充长度，因为事先要添加一比特，故应计算cur_buf_len + 1是否超过56
-    padn = ((ctx->cur_buf_len + 1) < 56) ? (56 - ctx->cur_buf_len) : (120 - ctx->cur_buf_len);
+    padn = ((ctx->cur_buf_len + 1) <= 56) ? (56 - ctx->cur_buf_len) : (120 - ctx->cur_buf_len);
 
     // 添加填充
     gm_sm3_update(ctx, (unsigned char *) gm_sm3_padding, padn);

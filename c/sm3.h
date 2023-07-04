@@ -40,6 +40,14 @@ void gm_sm3_update(gm_sm3_context * ctx, const unsigned char * input, unsigned i
 void gm_sm3_done(gm_sm3_context * ctx, unsigned char output[32]);
 
 /**
+ * 重置上下文，以达到复用此上下文的目的
+ * @param ctx 上下文
+ */
+inline void gm_sm3_reset(gm_sm3_context * ctx) {
+    gm_sm3_init(ctx);
+}
+
+/**
  * 直接计算消息的摘要
  * @param input 消息
  * @param iLen 消息长度（字节）
