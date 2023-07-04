@@ -48,11 +48,11 @@ public class SM2CryptTest {
             // 跟私钥一样，在创建ECPublicKeyParameters实例的时候，会去校验点是否符合SM2曲线要求
             ECPublicKeyParameters ecpub = new ECPublicKeyParameters(sm2Q, gmDomainParameters);
 
-            // 生产时，请勿这样使用
+            // FIXME 生产时，请勿这样使用
             ParametersWithRandom fixedRandomParameters = new ParametersWithRandom(ecpub, new FixedRandom());
 
             YiSM2Engine yiSM2Engine = new YiSM2Engine();
-            byte[] c1 = yiSM2Engine.initForEncryption(fixedRandomParameters); // 注意生产时应直接用ecpub代替fixedRandomParameters
+            byte[] c1 = yiSM2Engine.initForEncryption(fixedRandomParameters); // FIXME 注意生产时应直接用ecpub代替fixedRandomParameters
             yiSM2Engine.update(new byte[]{0x61, 0x62, 0x63}, 0, 3); // 因为数据只有3字节，不满一轮，所以这里是不会输出结果的
             byte[] c3 = new byte[32];
             byte[] c2 = yiSM2Engine.doFinal(c3, 0);

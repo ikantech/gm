@@ -48,10 +48,20 @@ public class YiSM2Engine {
     }
 
 
+    /**
+     * 返回加密后的数据长度
+     * @param inputLen 输入数据长度
+     * @return 返回加密后数据长度
+     */
     public int getOutputSize(int inputLen) {
         return (1 + 2 * curveLength) + inputLen + digest.getDigestSize();
     }
 
+    /**
+     * 加密初始
+     * @param param 公钥参数
+     * @return 返回C1
+     */
     public byte[] initForEncryption(CipherParameters param) {
         SecureRandom random;
 
@@ -93,6 +103,11 @@ public class YiSM2Engine {
         return c1;
     }
 
+    /**
+     * 解密初始
+     * @param param 私钥参数
+     * @param c1 C1
+     */
     public void initForDecryption(CipherParameters param, byte[] c1) {
         ecKey = (ECKeyParameters)param;
         ecParams = ecKey.getParameters();
@@ -139,10 +154,24 @@ public class YiSM2Engine {
         return data;
     }
 
+    /**
+     * 添加待计算数据，每满一轮计算一轮
+     * @param input 待计算数据
+     * @return 已处理数据，不满一轮时，无输出则返回null
+     * @throws IOException 计算异常
+     */
     public byte[] update(byte[] input) throws IOException {
         return this.update(input, 0, input.length);
     }
 
+    /**
+     * 添加待计算数据，每满一轮计算一轮
+     * @param input 待计算数据
+     * @param off 数据偏移
+     * @param len 数据长度
+     * @return 已处理数据，不满一轮时，无输出则返回null
+     * @throws IOException 计算异常
+     */
     public byte[] update(byte[] input, int off, int len) throws IOException {
         int curLen = buffer.size();
         int wLen = 0;
@@ -166,6 +195,12 @@ public class YiSM2Engine {
         return null;
     }
 
+    /**
+     * 结束数据处理,解密时要自行用这里输出的C3与密文中的C3进行比较
+     * @param c3 用于存储输出C3的缓冲区
+     * @param c3Off 缓冲区偏移
+     * @return 已处理数据，不满一轮时，无输出则返回null
+     */
     public byte[] doFinal(byte[] c3, int c3Off) {
         byte[] ret = null;
         if(buffer.size() > 0) {

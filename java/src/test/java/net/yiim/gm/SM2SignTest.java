@@ -85,13 +85,13 @@ public class SM2SignTest {
             // 创建SM2私钥，ECPrivateKeyParameters实例创建时，会去校验大数是否符合SM2曲线的要求
             ECPrivateKeyParameters ecpriv = new ECPrivateKeyParameters(sm2D, gmDomainParameters);
 
-            // 生产时，请勿这样使用
+            // FIXME 生产时，请勿这样使用
             ParametersWithRandom fixedRandomParameters = new ParametersWithRandom(ecpriv, new FixedRandom());
 
             // 默认的摘要算法即是SM3
             SM2Signer sm2Signer = new SM2Signer(new SM2RSEncoding());
             // 此时默认的userid为1234567812345678
-            sm2Signer.init(true, fixedRandomParameters); // 注意生产时应直接用ecpriv代替fixedRandomParameters
+            sm2Signer.init(true, fixedRandomParameters); // FIXME 注意生产时应直接用ecpriv代替fixedRandomParameters
             // 添加待签名的数据
             sm2Signer.update(new byte[]{0x61, 0x62, 0x63}, 0, 3);
             // 生成签名

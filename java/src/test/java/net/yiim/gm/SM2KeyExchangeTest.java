@@ -31,7 +31,7 @@ public class SM2KeyExchangeTest {
             ECPublicKeyParameters userAPubK = new ECPublicKeyParameters(gmDomainParameters.getCurve().decodePoint(
                     Hex.decode("0256fbc5499c97e4b3e0b242c78e97f7792b416cbdec84357a7d1e9f52f133982d")), gmDomainParameters);
 
-            // 生产应随机生成
+            // FIXME 生产应随机生成
             ECPrivateKeyParameters userARandPrivK = new ECPrivateKeyParameters(
                     new BigInteger(1, Hex.decodeStrict("0027ebfb3086a7c993134b3fd7abbc911c561558a0cde7ca5fc230c825025cd3")),
                     gmDomainParameters);
@@ -61,7 +61,7 @@ public class SM2KeyExchangeTest {
             ECPublicKeyParameters userBPubK = new ECPublicKeyParameters(gmDomainParameters.getCurve().decodePoint(
                     Hex.decode("029754599adf0d8f71e8cc6bd7c284f0b1e4750c4cb1409d42fe0e4c5690cff705")), gmDomainParameters);
 
-            // 生产应随机生成
+            // FIXME 生产应随机生成
             ECPrivateKeyParameters userBRandPrivK = new ECPrivateKeyParameters(
                     new BigInteger(1, Hex.decodeStrict("eed5f1af1daf647f31eebbb4cea58d16bf7716d085c5ef79c543c645c8c44654")),
                     gmDomainParameters);
