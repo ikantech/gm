@@ -15,7 +15,8 @@ typedef struct {
 } gm_sm4_context;
 
 /**
- * sm4加解密算法
+ * sm4加解密算法，此为ECB/NoPadding，且只能处理一轮，勿用
+ * 使用init、update(可多次调用)、done三步来代替
  * @param key sm4 密钥
  * @param forEncryption 1为加密，否则为解密
  * @param in 待计算数据, 16字节
@@ -36,19 +37,26 @@ void gm_sm4_init(gm_sm4_context * ctx, const unsigned char key[16],
 
 /**
  * 添加待加解密数据，sm4每16字节为一组
+ * 此方法每满16字节就会立刻加解密这16字节，所以返回值用来表示已加解密数据的长度
  * @param ctx sm4 上下文
  * @param input 待计算数据
  * @param iLen 待计算数据长度
  * @param output 输出缓冲区，长度 >= ((iLen + 15) / 16) * 16
- * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数
+ * @return 已加解密的数据长度，通常为16的倍数
  */
 int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned int iLen, unsigned char * output);
 
 /**
  * 结束加解密计算
+ *
+ * gm_sm4_update每次都会留一轮放到gm_sm4_done来处理
+ * 避免处理文件时，有Padding的情况，如果解密内容已经写到明文文件中，
+ * 结果算法告诉你里面有Padding是要去掉的，那不好处理已写的文件，
+ * 所以留一轮到最后，不管有没有Padding，算法输出给你结果，无脑写文件就行
+ *
  * @param ctx sm4 上下文
  * @param output 输出缓冲区，长度 >= 16字节
- * @return 缓冲区数据长度，0表示待计算数据未满足大于一组的长度（16字节）,其它值表示缓冲区计算结果的长度，通常为16的倍数，-1表示加解失败
+ * @return 已加解密的数据长度，通常为16的倍数，-1表示加解失败
  */
 int gm_sm4_done(gm_sm4_context * ctx, unsigned char * output);
 

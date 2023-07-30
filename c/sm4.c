@@ -226,9 +226,8 @@ static void update_one_round(gm_sm4_context * ctx, unsigned char * output) {
 int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned int iLen, unsigned char * output) {
 	int rLen = 0;
 
-	while(iLen--) {
-        /* 是否满16个字节，这里要留一轮，要不调用gm_sm4_done时就不好处理填充了 */
-        if (ctx->cur_buf_len == 16 && iLen > 0) {
+	do {
+        if (ctx->cur_buf_len == 16) {
             // 满了，则立即调用轮函数进行处理
             update_one_round(ctx, output + rLen);
             ctx->total_len += 16;
@@ -237,7 +236,7 @@ int gm_sm4_update(gm_sm4_context * ctx, const unsigned char * input, unsigned in
         }
 
 		ctx->buf[ctx->cur_buf_len++] = *input++;
-	}
+	} while(--iLen);
 	return rLen;
 }
 
@@ -288,7 +287,7 @@ int gm_sm4_done(gm_sm4_context * ctx, unsigned char * output) {
 		// 解密
 		if((ctx->state & 0x02)) {
 			// PKCS7Padding
-			if(output[15] > 16) {
+			if(output[15] > 16 || output[15] <= 0) {
 				// 如果是PKCS7Padding，则output最后一个字节肯定是填充字节，那其值肯定要小于等于16
 				return -1;
 			}
